@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>用户管理系统 Cloud Flow v5.1 (Supabase)</title>
+<title>用户管理系统 Cloud Sync v5.0 (Supabase)</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -35,28 +35,25 @@
   .unused-item { background: var(--surface2); border: 1px solid var(--border); padding: 3px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
 
   .main-content { width: 98%; max-width: 1600px; margin:0 auto; padding:0 20px; }
-  .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow-x: auto; }
+  .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   table { width:100%; border-collapse:collapse; min-width: 1100px; table-layout: fixed; }
-  th { background:var(--surface2); color:var(--text3); font-size:11px; padding:12px 10px; text-align:left; border-bottom:1px solid var(--border); }
+  th { background:var(--surface2); color:#90ee90; font-size:11px; padding:12px 10px; text-align:left; border-bottom:1px solid var(--border); white-space: nowrap; }
   
   td { padding:10px; font-size:13px; border-bottom:1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .header-stat { color: var(--accent); font-weight: 800; margin-left: 4px; }
+  .header-stat { color: var(--accent); font-weight: 800; }
   .editable { cursor: pointer; border-bottom: 1px dashed #444; position: relative; }
   .editable:hover { background: rgba(240,165,0,0.05); color: var(--accent); }
   
   .edit-input { background: #000; border: 1px solid var(--accent); color: #fff; width: 100%; padding: 4px; border-radius: 4px; font-family: inherit; outline: none; }
-  .col-filter { width: 100%; background: #000; border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 10px; padding: 3px; margin-top: 5px; box-sizing: border-box; }
+  .col-filter { display: block; width: 100%; background: #000; border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 10px; padding: 3px; margin-top: 5px; box-sizing: border-box; }
   
   .btn { padding: 6px 12px; border-radius:4px; border:none; cursor:pointer; font-size:11px; font-weight:600; display:inline-flex; align-items:center; justify-content: center; gap:4px; }
-  .btn-sm { padding: 4px 8px; font-size: 10px; white-space: nowrap; }
+  .btn-sm { padding: 4px 8px; font-size: 10px; }
   .btn-primary { background:var(--accent); color:#000; }
   .btn-success { background:var(--success); color:#000; }
   .btn-danger { background:var(--danger); color:#fff; }
   .btn-ghost { background:transparent; color:var(--text); border:1px solid var(--border); }
   
-  /* 操作列适配优化 */
-  .action-cell { display: flex; gap: 4px; min-width: 150px; flex-wrap: nowrap; align-items: center; }
-
   .star-btn { cursor: pointer; font-size: 16px; color: var(--text3); transition: 0.2s; margin-right: 5px; vertical-align: middle; }
   .star-btn.active { color: var(--warning); text-shadow: 0 0 8px rgba(255,165,2,0.5); }
 
@@ -64,7 +61,7 @@
   .trash-drawer.open { right: 0; }
   .trash-list-wrap { flex: 1; overflow-y: auto; margin-top: 10px; }
   .trash-row { display: grid; grid-template-columns: 30px 1fr 1.5fr 1fr 1fr 1fr 0.8fr 125px; align-items: center; background: var(--surface2); border: 1px solid var(--border); padding: 8px 12px; border-radius: 6px; margin-bottom: 6px; font-size: 11px; gap: 8px; }
-  .trash-header { display: grid; grid-template-columns: 30px 1fr 1.5fr 1fr 1fr 1fr 0.8fr 125px; padding: 0 12px 8px 12px; color: var(--text3); font-size: 10px; gap: 8px; }
+  .trash-header { display: grid; grid-template-columns: 30px 1fr 1.5fr 1fr 1fr 1fr 0.8fr 125px; padding: 0 12px 8px 12px; color: #90ee90; font-size: 10px; gap: 8px; }
   .trash-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .batch-actions { background: var(--surface2); padding: 12px 20px; display: none; align-items: center; gap: 15px; position: fixed; bottom: 0; left: 0; right: 0; border-top: 2px solid var(--accent); z-index: 99; }
@@ -84,7 +81,7 @@
 
 <header class="header">
   <div style="display:flex; align-items:center">
-    <div class="logo">⚡ CLOUD FLOW <small style="font-size: 10px; color: var(--text3)">V5.1</small></div>
+    <div class="logo">⚡ CLOUD FLOW <small style="font-size: 10px; color: var(--text3)">SUPABASE 版</small></div>
     <span class="sync-info" id="syncStatus">连接中...</span>
   </div>
   <div style="display:flex; gap:8px;">
@@ -111,17 +108,17 @@
       <thead>
         <tr>
           <th width="50"><input type="checkbox" id="selectAll" onclick="toggleSelectAll('userTableBody', 'selectAll')"></th>
-          <th width="90">归属<input type="text" class="col-filter" data-col="owner" value="小强" oninput="render()"></th>
-          <th width="70">窗口 <span class="header-stat" id="statWindows">/ 0</span><input type="text" class="col-filter" data-col="windows" oninput="render()"></th>
-          <th width="140">用户 <span class="header-stat" id="statUsers">/ 0</span><input type="text" class="col-filter" data-col="username" oninput="render()"></th>
+          <th width="90">归属<input type="text" class="col-filter" data-col="owner" oninput="render()"></th>
+          <th width="70">窗口<span class="header-stat" id="statWindows">/0</span><input type="text" class="col-filter" data-col="windows" oninput="render()"></th>
+          <th width="140">用户<span class="header-stat" id="statUsers">/0</span><input type="text" class="col-filter" data-col="username" oninput="render()"></th>
           <th width="110">密码<input type="text" class="col-filter" data-col="password" oninput="render()"></th>
           <th width="100">微信<input type="text" class="col-filter" data-col="wechat" oninput="render()"></th>
           <th width="100">咸鱼<input type="text" class="col-filter" data-col="xianyu" oninput="render()"></th>
           <th width="115">激活时间<input type="text" class="col-filter" data-col="activeTime" oninput="render()"></th>
           <th width="115">到期日期<input type="text" class="col-filter" data-col="expiry" oninput="render()"></th>
-          <th width="70">金额 <span class="header-stat" id="statAmount">/ 0</span><input type="text" class="col-filter" data-col="amount" oninput="render()"></th>
+          <th width="70">金额<span class="header-stat" id="statAmount">/0</span><input type="text" class="col-filter" data-col="amount" oninput="render()"></th>
           <th width="80">状态</th>
-          <th width="160">操作</th>
+          <th width="150">操作</th>
         </tr>
       </thead>
       <tbody id="userTableBody"></tbody>
@@ -153,8 +150,11 @@
     <button class="btn btn-ghost btn-sm" onclick="exportTrashSelected()">📥 批量导出</button>
   </div>
   
+  <div style="padding: 0 12px 8px 12px;">
+    <input type="text" id="trashSearchInput" style="width:100%; background:#000; border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:11px; padding:5px 8px; box-sizing:border-box; outline:none;" placeholder="🔍 搜索用户名..." oninput="renderTrash()">
+  </div>
   <div class="trash-header">
-    <div></div><div>归属</div><div>用户名</div><div>微信</div><div>咸鱼</div><div>到期(月日)</div><div>金额</div><div>操作</div>
+    <div></div><div>归属</div><div>用户/<span id="trashUserCount">0</span></div><div>微信</div><div>咸鱼</div><div>到期(月日)</div><div>金额</div><div>操作</div>
   </div>
   <div class="trash-list-wrap" id="trashList"></div>
 </div>
@@ -181,13 +181,15 @@ const ROW_ID = 1;
 const DEFAULT_WINDOWS = '100';
 const DEFAULT_AMOUNT = '32';
 const DEFAULT_PWD = '123456';
-const DEFAULT_OWNER = '小强';
 
 let db = { users: [], unused: [], trash: [] };
 let currentFilter = 'all';
 let newlyActivatedId = null;
 let _isSaving = false;      // 保存锁，防止并发覆盖
 let _saveTimer = null;      // 防抖定时器
+let lastKnownUpdatedAt = null; // 【乐观锁】云端最后的时间戳版本
+
+// ─────────────────── 工具函数：北京时间与日期 ───────────────────
 
 function getBeijingTime() {
     const now = new Date();
@@ -216,6 +218,10 @@ function getStatus(dateStr) {
     return 'active';
 }
 
+setInterval(() => render(true), 600000);
+
+// ─────────────────── Supabase 同步 ───────────────────
+
 async function syncFromCloud() {
     // 如果正在保存，跳过同步，防止用旧数据覆盖正在保存的新数据
     if (_isSaving) {
@@ -224,9 +230,11 @@ async function syncFromCloud() {
     }
     showLoading(true);
     try {
-        const { data, error } = await supabaseClient.from('MainData').select('content').eq('id', ROW_ID).single();
+        const { data, error } = await supabaseClient.from('MainData').select('content, updated_at').eq('id', ROW_ID).single();
         if (error) throw error;
         if (data && data.content) {
+            lastKnownUpdatedAt = data.updated_at || 'FRESH';
+            // 兼容 content 可能是字符串或对象
             let parsed = data.content;
             if (typeof parsed === 'string') {
                 try { parsed = JSON.parse(parsed); } catch(e) { parsed = {}; }
@@ -238,6 +246,7 @@ async function syncFromCloud() {
         render();
     } catch (err) {
         console.error('[sync] 同步失败:', err);
+        // 同步失败时尝试从 localStorage 恢复
         const local = localStorage.getItem(STORAGE_KEY);
         if (local) {
             try { db = { users: [], unused: [], trash: [], ...JSON.parse(local) }; render(); } catch(e) {}
@@ -249,6 +258,7 @@ async function syncFromCloud() {
 
 // 防抖保存：多次快速编辑只触发一次上传
 function saveToCloud() {
+    // 立即保存到 localStorage（防止页面关闭丢数据）
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ users: db.users, unused: db.unused, trash: db.trash }));
     document.getElementById('syncStatus').innerText = "☁️ 等待上传...";
     clearTimeout(_saveTimer);
@@ -257,6 +267,7 @@ function saveToCloud() {
 
 async function _doSaveToCloud() {
     if (_isSaving) {
+        // 如果正在保存，延迟重试
         clearTimeout(_saveTimer);
         _saveTimer = setTimeout(() => _doSaveToCloud(), 600);
         return;
@@ -264,22 +275,54 @@ async function _doSaveToCloud() {
     _isSaving = true;
     const statusEl = document.getElementById('syncStatus');
     statusEl.innerText = "☁️ 正在上传...";
+
+    if (!lastKnownUpdatedAt) {
+        alert("⚠️ 启动保护拒绝保存：\n您尚未成功获取过云端版本号。为防止意外覆盖他人的存档网络数据，请先点击【🔄 强制刷新】后再尝试进行操作！");
+        statusEl.innerText = "❌ 警告: 缺少初始同步验证";
+        _isSaving = false;
+        return;
+    }
+
+    // 保存为对象（不是 JSON 字符串），让 Supabase jsonb 正确存储
     const payload = { users: db.users, unused: db.unused, trash: db.trash };
+    const currentNow = new Date().toISOString();
     try {
-        const { error } = await supabaseClient.from('MainData').upsert({ id: ROW_ID, content: payload, updated_at: new Date().toISOString() });
-        if (error) throw error;
-        statusEl.innerText = `✅ 已同步 ${getBeijingTime().toLocaleTimeString('zh-CN', {hour12:false})}`;
+        let opResult;
+        if (lastKnownUpdatedAt === 'FRESH') {
+            opResult = await supabaseClient.from('MainData').upsert({ id: ROW_ID, content: payload, updated_at: currentNow }).select();
+        } else {
+            // 附带并发检查条件的 update 操作
+            opResult = await supabaseClient.from('MainData')
+                .update({ content: payload, updated_at: currentNow })
+                .eq('id', ROW_ID)
+                .eq('updated_at', lastKnownUpdatedAt)
+                .select();
+        }
+
+        if (opResult.error) throw opResult.error;
+
+        if (lastKnownUpdatedAt !== 'FRESH' && (!opResult.data || opResult.data.length === 0)) {
+            alert("⚠️ 极度危险：修改拦截！\n\n检测到【云端数据刚刚已被其他人修改最新数据】。\n由于您本地电脑停留的数据过旧，强行上传【会覆盖抹除别人的工作成果】！\n\n请点击右上角的「🔄 强制刷新」重新下载同步数据，而后再重新操作刚刚的字段。");
+            statusEl.innerHTML = `<span style="color:var(--danger); font-weight:bold;">❌ 冲突拦截！必须刷新</span>`;
+            _isSaving = false;
+            return;
+        }
+
+        lastKnownUpdatedAt = currentNow;
+        statusEl.innerText = `✅ 保存成功 ${getBeijingTime().toLocaleTimeString('zh-CN', {hour12:false})}`;
     } catch (err) {
         console.error('[save] 上传失败:', err);
-        statusEl.innerText = "⚠️ 仅本地保存";
+        statusEl.innerText = "⚠️ 网络失败，仅本地保存";
     } finally {
         _isSaving = false;
     }
 }
 
+// ─────────────────── 核心渲染逻辑 ───────────────────
+
 function render(noSort = false) {
     const container = document.getElementById('userTableBody');
-    let displayData = [...db.users];
+    let displayData = db.users; // 显示所有用户
     
     const filters = {};
     document.querySelectorAll('.col-filter').forEach(i => {
@@ -287,10 +330,9 @@ function render(noSort = false) {
     });
 
     displayData = displayData.filter(u => {
-        const ownerMatch = (u.owner || '').includes('小强');
         const statusMatch = currentFilter === 'all' || getStatus(u.expiry) === currentFilter;
         const columnMatch = Object.keys(filters).every(key => String(u[key] || '-').toLowerCase().includes(filters[key]));
-        return ownerMatch && statusMatch && columnMatch;
+        return statusMatch && columnMatch;
     });
 
     if(!noSort) {
@@ -302,9 +344,9 @@ function render(noSort = false) {
         });
     }
 
-    document.getElementById('statWindows').innerText = `/ ${displayData.reduce((s, u) => s + parseInt(u.windows || 0), 0)}`;
-    document.getElementById('statUsers').innerText = `/ ${displayData.length}`;
-    document.getElementById('statAmount').innerText = `/ ${displayData.reduce((s, u) => s + parseFloat(u.amount || 0), 0).toFixed(0)}`;
+    document.getElementById('statWindows').innerText = `/${displayData.reduce((s, u) => s + parseInt(u.windows || 0), 0)}`;
+    document.getElementById('statUsers').innerText = `/${displayData.length}`;
+    document.getElementById('statAmount').innerText = `/${displayData.reduce((s, u) => s + parseFloat(u.amount || 0), 0).toFixed(0)}`;
     document.getElementById('trashCount').innerText = db.trash.length;
 
     renderStatsBar();
@@ -331,12 +373,10 @@ function render(noSort = false) {
             <td class="editable" data-f="expiry">${u.expiry}</td>
             <td class="editable" data-f="amount" style="color:var(--accent)">${u.amount || DEFAULT_AMOUNT}</td>
             <td><span style="color:var(--${st}); font-size:10px; font-weight:bold">${st==='expiring'?'⚠️即将到期':st==='active'?'✅有效':'❌过期'}</span></td>
-            <td>
-                <div class="action-cell">
-                    <button class="btn btn-success btn-sm" onclick="quickRenew('${u.id}')">续费</button>
-                    <button class="btn btn-sm" style="background:var(--warning); color:#000;" onclick="rollbackUser('${u.id}')">回退</button>
-                    <button class="btn btn-ghost btn-sm" onclick="moveUserToTrash('${u.id}')">🗑️</button>
-                </div>
+            <td style="overflow: visible; white-space: nowrap;">
+                <button class="btn btn-success btn-sm" onclick="quickRenew('${u.id}')">续费</button>
+                <button class="btn btn-sm" style="background:var(--warning); color:#000;" onclick="rollbackUser('${u.id}')">回退</button>
+                <button class="btn btn-ghost btn-sm" onclick="moveUserToTrash('${u.id}')">🗑️</button>
             </td>
         `;
 
@@ -351,7 +391,10 @@ function render(noSort = false) {
 
 function renderTrash() {
     const list = document.getElementById('trashList');
-    list.innerHTML = db.trash.map(u => `
+    const searchVal = (document.getElementById('trashSearchInput')?.value || '').trim().toLowerCase();
+    const filtered = searchVal ? db.trash.filter(u => String(u.username || '').toLowerCase().includes(searchVal)) : db.trash;
+    document.getElementById('trashUserCount').innerText = filtered.length;
+    list.innerHTML = filtered.map(u => `
         <div class="trash-row">
             <input type="checkbox" class="trash-cb" value="${u.id}">
             <div class="trash-val" title="${u.owner || '-'}">${u.owner || '-'}</div>
@@ -369,6 +412,8 @@ function renderTrash() {
     `).join('') || '<div style="text-align:center; padding:40px; color:var(--text3)">回收站空空如也</div>';
 }
 
+// ─────────────────── 业务操作 ───────────────────
+
 function toggleStar(id) {
     const u = db.users.find(x => x.id === id);
     if(u) { u.isStarred = !u.isStarred; saveToCloud(); render(); }
@@ -382,7 +427,8 @@ function activate(id) {
     now.setMonth(now.getMonth() + 1);
     const newId = 'u_' + Date.now();
     newlyActivatedId = newId;
-    db.users.push({ id: newId, username: u.username, password: u.password, owner: DEFAULT_OWNER, wechat: '-', xianyu: '-', amount: DEFAULT_AMOUNT, windows: DEFAULT_WINDOWS, activeTime, expiry: now.toISOString().slice(0,10), isStarred: false });
+    // 💡 已修改：此处将默认激活时的归属从具体名称改为 '-' (无归属)
+    db.users.push({ id: newId, username: u.username, password: u.password, owner: '-', wechat: '-', xianyu: '-', amount: DEFAULT_AMOUNT, windows: DEFAULT_WINDOWS, activeTime, expiry: now.toISOString().slice(0,10), isStarred: false });
     db.unused = db.unused.filter(x => x.id !== id);
     saveToCloud(); render();
 }
@@ -394,8 +440,7 @@ function quickRenew(id) {
     if (d < getBeijingTime()) d = getBeijingTime();
     d.setDate(d.getDate() + 30);
     u.expiry = d.toISOString().slice(0, 10);
-    newlyActivatedId = id; 
-    saveToCloud(); render();
+    newlyActivatedId = id; saveToCloud(); render();
 }
 
 function moveUserToTrash(id) {
@@ -405,7 +450,7 @@ function moveUserToTrash(id) {
 
 function rollbackUser(id) {
     const idx = db.users.findIndex(u => u.id === id);
-    if(idx > -1 && confirm("确定回退到名额列表？")) {
+    if(idx > -1 && confirm("回退到名额列表？")) {
         const u = db.users.splice(idx, 1)[0];
         db.unused.push({ id: 'un_'+Date.now()+Math.random(), username: u.username, password: u.password || DEFAULT_PWD });
         saveToCloud(); render();
@@ -422,25 +467,18 @@ function rollbackTrashUser(id) {
 }
 
 function permanentlyDelete(id) {
-    if(confirm("确定永久删除？")) { 
-        db.trash = db.trash.filter(u => u.id !== id); 
-        saveToCloud(); renderTrash(); render();
-    }
+    if(confirm("确定永久删除？")) { db.trash = db.trash.filter(u => u.id !== id); saveToCloud(); renderTrash(); render(); }
 }
 
 function restore(id) {
     const idx = db.trash.findIndex(u => u.id === id);
-    if(idx > -1) { 
-        const restored = db.trash.splice(idx, 1)[0]; 
-        newlyActivatedId = restored.id;
-        db.users.push(restored); 
-        saveToCloud(); renderTrash(); render();
-    }
+    if(idx > -1) { const restored = db.trash.splice(idx, 1)[0]; newlyActivatedId = restored.id; db.users.push(restored); saveToCloud(); renderTrash(); render(); }
 }
 
+// ─────────────────── 其他逻辑 ───────────────────
+
 function renderStatsBar() {
-    const filteredUsers = db.users.filter(u => (u.owner || '').includes('小强'));
-    const s = { all: filteredUsers.length, active: filteredUsers.filter(u => getStatus(u.expiry) === 'active').length, expiring: filteredUsers.filter(u => getStatus(u.expiry) === 'expiring').length, expired: filteredUsers.filter(u => getStatus(u.expiry) === 'expired').length, unused: db.unused.length };
+    const s = { all: db.users.length, active: db.users.filter(u => getStatus(u.expiry) === 'active').length, expiring: db.users.filter(u => getStatus(u.expiry) === 'expiring').length, expired: db.users.filter(u => getStatus(u.expiry) === 'expired').length, unused: db.unused.length };
     const labels = { all:'总用户', active:'有效', expiring:'即将到期', expired:'已过期', unused:'待激活' };
     document.getElementById('statsBar').innerHTML = Object.keys(labels).map(k => `<div class="stat-card ${currentFilter===k?'active':''}" onclick="currentFilter='${k}';render()"><div class="stat-label">${labels[k]}</div><div class="stat-value" style="color:var(--${k==='all'?'accent':k})">${s[k]}</div></div>`).join('');
 }
@@ -457,7 +495,7 @@ function makeEditable(el, id, field) {
     input.value = oldVal;
     el.innerHTML = ''; el.appendChild(input); input.focus();
     input.onblur = () => {
-      if (input._saved) return;
+      if (input._saved) return; // 防止重复触发
       input._saved = true;
       const u = db.users.find(x => x.id === id);
       if(u) {
@@ -474,14 +512,14 @@ function updateBatchBar() { const count = document.querySelectorAll('#userTableB
 function cancelSelect() { document.getElementById('selectAll').checked = false; document.querySelectorAll('.user-cb').forEach(cb => cb.checked = false); updateBatchBar(); }
 function batchAction(type) {
     const ids = Array.from(document.querySelectorAll(`.user-cb:checked`)).map(cb => cb.dataset.id);
-    if (type === 'delete') ids.forEach(id => { const idx = db.users.findIndex(u => u.id === id); if(idx > -1) db.trash.unshift(db.users.splice(idx, 1)[0]); });
-    if (type === 'rollback' && confirm("批量回退？")) ids.forEach(id => { const idx = db.users.findIndex(u => u.id === id); if(idx > -1) { const u = db.users.splice(idx, 1)[0]; db.unused.push({ id: 'un_'+Date.now()+Math.random(), username: u.username, password: u.password || DEFAULT_PWD }); } });
+    if (type === 'delete') ids.forEach(id => moveUserToTrash(id));
+    if (type === 'rollback' && confirm("批量回退？")) ids.forEach(id => rollbackUser(id));
     cancelSelect(); saveToCloud(); render();
 }
 
 function toggleSelectAllTrash() { document.querySelectorAll('.trash-cb').forEach(cb => cb.checked = document.getElementById('selectAllTrash').checked); }
 function batchRestoreTrash() { Array.from(document.querySelectorAll('.trash-cb:checked')).forEach(cb => restore(cb.value)); }
-function batchDeleteTrash() { const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value); if(ids.length > 0 && confirm(`永久删除 ${ids.length} 项？`)) { db.trash = db.trash.filter(u => !ids.includes(u.id)); saveToCloud(); renderTrash(); render(); } }
+function batchDeleteTrash() { const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value); if(ids.length > 0 && confirm(`永久删除 ${ids.length} 项？`)) { db.trash = db.trash.filter(u => !ids.includes(u.id)); saveToCloud(); renderTrash(); } }
 function exportTrashSelected() { const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value); const list = ids.length > 0 ? db.trash.filter(u => ids.includes(u.id)) : db.trash; if(list.length === 0) return alert('回收站为空'); const ws = XLSX.utils.json_to_sheet(list.map(u => ({"归属": u.owner||'-', "窗口数": u.windows||'', "用户名": u.username, "密码": u.password||'', "微信": u.wechat||'-', "咸鱼": u.xianyu||'-', "激活时间": u.activeTime||'-', "金额": u.amount||'0', "到期日期": u.expiry||'-'}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "回收站导出"); XLSX.writeFile(wb, `回收站导出_${Date.now()}.xlsx`); }
 function batchRollbackTrash() {
     const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value);
@@ -501,7 +539,8 @@ function importExcel(input) {
     const r = new FileReader();
     r.onload = (e) => {
         const json = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(e.target.result), {type: 'array'}).Sheets[XLSX.read(new Uint8Array(e.target.result), {type: 'array'}).SheetNames[0]]);
-        json.forEach(row => { if(row["用户名"]) db.users.push({ id: 'u_'+Date.now()+Math.random(), owner: DEFAULT_OWNER, windows: row["窗口数"]||DEFAULT_WINDOWS, username: String(row["用户名"]), password: String(row["密码"]||DEFAULT_PWD), wechat: row["微信"]||'-', xianyu: row["咸鱼"]||'-', activeTime: row["激活时间"]||'-', amount: row["金额"]||DEFAULT_AMOUNT, expiry: row["到期日期"]||'-', isStarred: false }); });
+        // 💡 已修改：此处将导入Excel时，如果没有填写归属，也默认赋值为 '-' (无归属)
+        json.forEach(row => { if(row["用户名"]) db.users.push({ id: 'u_'+Date.now()+Math.random(), owner: row["归属"]||'-', windows: row["窗口数"]||DEFAULT_WINDOWS, username: String(row["用户名"]), password: String(row["密码"]||DEFAULT_PWD), wechat: row["微信"]||'-', xianyu: row["咸鱼"]||'-', activeTime: row["激活时间"]||'-', amount: row["金额"]||DEFAULT_AMOUNT, expiry: row["到期日期"]||'-', isStarred: false }); });
         saveToCloud(); render(); input.value = '';
     };
     r.readAsArrayBuffer(input.files[0]);
@@ -528,10 +567,10 @@ function showLoading(s) { document.getElementById('loadingMask').style.display =
     syncFromCloud();
 })();
 
+// 页面关闭前确保数据保存
 window.addEventListener('beforeunload', () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ users: db.users, unused: db.unused, trash: db.trash }));
 });
-setInterval(() => render(true), 600000);
 </script>
 </body>
 </html>
