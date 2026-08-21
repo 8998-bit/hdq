@@ -2296,7 +2296,7 @@ async function _doSaveToCloud() {
     } finally {
         _isSaving = false;
         if (_hasPendingSave && !_saveRetryTimer && !conflictDetected) {
-            scheduleCloudSave(80);
+            scheduleCloudSave(500);
         }
     }
 }
