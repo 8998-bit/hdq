@@ -532,6 +532,7 @@ let _bitRefreshPromise = null;
 let _isSyncingConnectors = false;
 let _lastConnectorsSyncAt = 0;
 let _lastVisibilitySyncAt = 0;
+let _lastBitIntegrationSaveAt = 0;
 let connectorHeartbeatById = new Map();
 let activeConnectors = [];
 let bitConnectorRoutes = [];
@@ -1889,16 +1890,28 @@ function renderBitIntegration() {
 async function refreshBitIntegration(silent = true) {
     if (_bitRefreshPromise) return _bitRefreshPromise;
     _bitRefreshPromise = (async () => {
-        let changed = collectRecordBitTasks();
-        changed = ensureBitUsernameRegistry() || changed;
-        changed = resolveSupersededBitTasks() || changed;
+        const _changedReasons = [];
+        const _changedCollect = collectRecordBitTasks();
+        if (_changedCollect) _changedReasons.push('collectRecordBitTasks');
+        const _changedRegistry = ensureBitUsernameRegistry();
+        if (_changedRegistry) _changedReasons.push('ensureBitUsernameRegistry');
+        const _changedSuperseded = resolveSupersededBitTasks();
+        if (_changedSuperseded) _changedReasons.push('resolveSupersededBitTasks');
+        let changed = _changedCollect || _changedRegistry || _changedSuperseded;
         for (const task of db.bitTasks || []) {
             if (task.status === 'routing_required') {
                 const before = `${task.targetConnectorId || ''}|${task.status}`;
                 routeBitTask(task);
-                if (`${task.targetConnectorId || ''}|${task.status}` !== before) changed = true;
+                if (`${task.targetConnectorId || ''}|${task.status}` !== before) {
+                    changed = true;
+                    _changedReasons.push(`routeBitTask:${task.id}`);
+                }
             }
-            changed = applyTaskToRecords(task) || changed;
+            const _changedApply = applyTaskToRecords(task);
+            if (_changedApply) {
+                changed = true;
+                _changedReasons.push(`applyTaskToRecords:${task.id}`);
+            }
         }
         const now = Date.now();
         bitConnectorRoutes = activeConnectors.map(connector => ({
@@ -1918,7 +1931,18 @@ async function refreshBitIntegration(silent = true) {
         bitIntegrationAvailable = true;
         bitIntegrationMessage = '任务保存在MainData；连接器心跳已使用独立轻量通道';
         renderBitIntegration();
-        if (changed && lastKnownUpdatedAt && !_hasPendingSave) saveToCloud(true);
+        if (changed && _changedReasons.length) {
+            console.warn('[refreshBitIntegration] changed by:', _changedReasons.join(', '));
+        }
+        if (changed && lastKnownUpdatedAt && !_hasPendingSave) {
+            const _nowMs = Date.now();
+            if (_nowMs - _lastBitIntegrationSaveAt >= 10000) {
+                _lastBitIntegrationSaveAt = _nowMs;
+                saveToCloud(true);
+            } else {
+                console.log('[refreshBitIntegration] 10秒内已有自动保存，跳过本次静默保存');
+            }
+        }
         return changed;
     })();
     try {
