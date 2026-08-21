@@ -1503,7 +1503,25 @@ function applyTaskToRecords(task) {
                 record.bitSyncUpdatedAt = task.updatedAt;
             }
             const after = JSON.stringify(record);
-            if (before !== after) changed = true;
+            if (before !== after) {
+                changed = true;
+                try {
+                    const beforeObj = JSON.parse(before);
+                    const afterObj = JSON.parse(after);
+                    const diffKeys = Object.keys(afterObj).filter(k => JSON.stringify(beforeObj[k]) !== JSON.stringify(afterObj[k]));
+                    console.warn('[applyTaskToRecords] changed:', {
+                        taskId: task.id,
+                        action: task.action,
+                        status: task.status,
+                        listName,
+                        recordId: record.id,
+                        diffKeys,
+                        taskUpdatedAt: task.updatedAt,
+                        taskResultCode: task.resultCode,
+                        taskLastError: task.lastError
+                    });
+                } catch (e) {}
+            }
         }
     }
     return changed;
