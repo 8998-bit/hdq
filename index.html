@@ -1887,22 +1887,24 @@ async function refreshBitIntegration(silent = true) {
         if (_changedRegistry) _changedReasons.push('ensureBitUsernameRegistry');
         const _changedSuperseded = resolveSupersededBitTasks();
         if (_changedSuperseded) _changedReasons.push('resolveSupersededBitTasks');
+        let _changedRoute = false;
         let changed = _changedCollect || _changedRegistry || _changedSuperseded;
         for (const task of db.bitTasks || []) {
             if (task.status === 'routing_required') {
                 const before = `${task.targetConnectorId || ''}|${task.status}`;
                 routeBitTask(task);
                 if (`${task.targetConnectorId || ''}|${task.status}` !== before) {
-                    changed = true;
+                    _changedRoute = true;
                     _changedReasons.push(`routeBitTask:${task.id}`);
                 }
             }
             const _changedApply = applyTaskToRecords(task);
             if (_changedApply) {
-                changed = true;
-                _changedReasons.push(`applyTaskToRecords:${task.id}`);
+                // 任务状态到用户记录的镜像字段只用于界面显示，不触发 MainData 整包保存。
+                _changedReasons.push(`applyTaskToRecords(displayOnly):${task.id}`);
             }
         }
+        changed = _changedCollect || _changedRegistry || _changedSuperseded || _changedRoute;
         const now = Date.now();
         bitConnectorRoutes = activeConnectors.filter(connector =>
             connectorPrefixes(connector).length || connectorManualAccounts(connector).length
