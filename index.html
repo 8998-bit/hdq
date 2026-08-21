@@ -6,6 +6,9 @@
 <title>用户管理系统 Cloud Sync v5.0 (Supabase)</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://pay.bite5678.fun/payment/payment-client.js?v=20260810-window-lock"></script>
+<script src="https://pay.bite5678.fun/payment/window-payment-flow.js?v=20260810-window-lock"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root {
@@ -15,11 +18,11 @@
     --adaptive-shell-width: 1400px;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'JetBrains Mono', 'Microsoft YaHei', sans-serif; font-size:14px; background: var(--bg); color: var(--text); padding-bottom: 80px; overflow-y: scroll; }
+  body { font-family: 'JetBrains Mono', 'Microsoft YaHei', sans-serif; background: var(--bg); color: var(--text); padding-bottom: 80px; overflow-y: scroll; }
   
   .header { position:sticky; top:0; z-index:100; width:min(calc(100% - 48px), var(--adaptive-shell-width)); max-width:none; margin:0 auto; background: rgba(10,11,13,0.9); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 10px 20px; display:flex; align-items:center; justify-content:space-between; }
-  .logo { font-family:'Syne',sans-serif; font-weight:800; color: var(--accent); font-size: 1.3rem; }
-  .sync-info { font-size: 11px; color: var(--text3); margin-left: 10px; }
+  .logo { font-family:'Syne',sans-serif; font-weight:800; color: var(--accent); font-size: 1.2rem; }
+  .sync-info { font-size: 10px; color: var(--text3); margin-left: 10px; }
 
   .toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: var(--success); color: #000; padding: 8px 20px; border-radius: 4px; font-weight: bold; font-size: 12px; z-index: 9999; opacity: 0; transition: opacity 0.3s, transform 0.3s; pointer-events: none; box-shadow: 0 4px 15px rgba(46, 213, 115, 0.4); }
   .toast.show { opacity: 1; transform: translate(-50%, 10px); }
@@ -27,39 +30,36 @@
   .stats-bar { display:grid; grid-template-columns:repeat(5, 1fr); gap:10px; padding: 20px; width:min(calc(100% - 48px), var(--adaptive-shell-width)); max-width:none; margin:0 auto; }
   .stat-card { background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:10px; cursor:pointer; transition: 0.2s; }
   .stat-card.active { border: 2px solid var(--accent); background: var(--surface2); }
-  .stat-label { font-size:11px; color:var(--text3); }
-  .stat-value { font-family:'Syne',sans-serif; font-size:19px; font-weight: 800; }
+  .stat-label { font-size:10px; color:var(--text3); }
+  .stat-value { font-family:'Syne',sans-serif; font-size:18px; font-weight: 800; }
 
   .unused-container { width:min(calc(100% - 48px), var(--adaptive-shell-width)); max-width:none; margin: 0 auto 20px auto; padding: 0 20px; }
   .unused-box { background: rgba(167, 139, 250, 0.05); border: 1px dashed var(--unused); border-radius: 8px; padding: 12px; }
   .unused-container, .unused-box, .unused-list { touch-action:pan-x pan-y pinch-zoom; }
   .unused-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-  .unused-item { background: var(--surface2); border: 1px solid var(--border); padding: 3px 8px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  .unused-item { background: var(--surface2); border: 1px solid var(--border); padding: 3px 8px; border-radius: 4px; font-size: 11px; display: flex; align-items: center; gap: 6px; }
 
   .main-content { width:min(calc(100% - 48px), var(--adaptive-shell-width)); max-width:none; margin:0 auto; padding:0 20px; }
   .table-wrap { width:fit-content; max-width:100%; background:var(--surface); border:1px solid var(--border); border-radius:8px; overflow-x:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y pinch-zoom; }
   table { width:max-content; min-width:100%; border-collapse:collapse; table-layout:fixed; }
   .user-table { width:max-content; min-width:0; table-layout:auto; }
-  .user-table th { padding-left:6px; padding-right:6px; overflow:hidden; text-overflow:ellipsis; }
+  .user-table th { padding-left:6px; padding-right:6px; }
   .user-table td { padding-left:6px; padding-right:6px; }
-  .user-table .btn-sm { padding-left:6px; padding-right:6px; }
-  .user-table .row-actions-inner { gap:3px; }
-  th { background:var(--surface2); color:#90ee90; font-size:12px; padding:12px 10px; text-align:left; border-bottom:1px solid var(--border); white-space: nowrap; }
+  th { background:var(--surface2); color:#90ee90; font-size:11px; padding:12px 10px; text-align:left; border-bottom:1px solid var(--border); white-space: nowrap; }
   
-  td { padding:10px; font-size:14px; border-bottom:1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .header-stat { color: var(--accent); font-size:11px; font-weight: 800; }
-  .detail-cell { font-size:13px; }
-  .amount-cell { text-align:center; }
+  td { padding:10px; font-size:13px; border-bottom:1px solid var(--border); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .header-stat { color: var(--accent); font-weight: 800; }
+  .header-metric { display:inline-flex; align-items:baseline; gap:0; white-space:nowrap; }
   .copy-on-click { cursor:copy; touch-action:manipulation; }
   .copy-on-click:hover { background:rgba(240,165,0,0.05); color:var(--accent); }
   .editable { cursor: pointer; border-bottom: 1px dashed #444; position: relative; touch-action:manipulation; }
   .editable:hover { background: rgba(240,165,0,0.05); color: var(--accent); }
   
   .edit-input { background: #000; border: 1px solid var(--accent); color: #fff; width: 100%; padding: 4px; border-radius: 4px; font-family: inherit; outline: none; }
-  .col-filter { display: block; width: 100%; background: #000; border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 11px; padding: 3px; margin-top: 5px; box-sizing: border-box; }
+  .col-filter { display: block; width: 100%; background: #000; border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 10px; padding: 3px; margin-top: 5px; box-sizing: border-box; }
   
-  .btn { padding: 6px 12px; border-radius:4px; border:none; cursor:pointer; font-size:12px; font-weight:600; display:inline-flex; align-items:center; justify-content: center; gap:4px; white-space:nowrap; }
-  .btn-sm { padding: 4px 8px; font-size: 11px; }
+  .btn { padding: 6px 12px; border-radius:4px; border:none; cursor:pointer; font-size:11px; font-weight:600; display:inline-flex; align-items:center; justify-content: center; gap:4px; white-space:nowrap; }
+  .btn-sm { padding: 4px 8px; font-size: 10px; }
   .btn-primary { background:var(--accent); color:#000; }
   .btn-success { background:var(--success); color:#000; }
   .btn-danger { background:var(--danger); color:#fff; }
@@ -92,7 +92,18 @@
     overflow:hidden;
     text-overflow:ellipsis;
   }
-  .status-header, .status-cell, .window-change-header, .window-change-cell, .rename-header, .rename-cell, .actions-header { text-align:center; }
+  .task-header { text-align:center; }
+  .window-change-header { text-align:center; }
+  .actions-header { text-align:center; }
+  .owner-header, .owner-cell { width:60px; min-width:60px; max-width:60px; padding-left:6px; padding-right:6px; text-align:center; }
+  .window-header, .window-cell { width:68px; min-width:68px; max-width:68px; padding-left:6px; padding-right:6px; text-align:center; }
+  .user-header, .user-cell { width:96px; min-width:96px; max-width:96px; padding-left:6px; padding-right:6px; }
+  .wechat-header, .wechat-cell { width:90px; min-width:90px; max-width:90px; padding-left:6px; padding-right:6px; }
+  .amount-header, .amount-cell { width:72px; min-width:72px; max-width:72px; padding-left:6px; padding-right:6px; text-align:center; }
+  .status-header, .status-cell { width:76px; min-width:76px; max-width:76px; padding-left:6px; padding-right:6px; text-align:center; }
+  .window-change-header, .window-change-cell { width:76px; min-width:76px; max-width:76px; padding-left:6px; padding-right:6px; text-align:center; }
+  .window-change-header { white-space:nowrap; line-height:normal; }
+  .window-change-cell .btn { display:block; min-width:0; margin:0 auto; padding-left:5px; padding-right:5px; }
   .trash-toolbar { display:flex; gap:10px; margin-bottom:15px; padding-bottom:15px; border-bottom:1px solid var(--border); align-items:center; }
   .trash-search-wrap { padding:0 12px 8px 12px; }
 
@@ -116,7 +127,7 @@
   .bit-link-btn.ok { border-color:var(--success); color:var(--success); }
   .bit-link-btn.warn { border-color:var(--warning); color:var(--warning); }
   .bit-link-btn.error { border-color:var(--danger); color:var(--danger); }
-  .bit-modal { width:min(1280px, calc(100vw - 24px)); max-width:calc(100vw - 24px); max-height:90vh; display:flex; flex-direction:column; box-sizing:border-box; overflow:hidden; }
+  .bit-modal { width:min(980px, 96vw); max-height:90vh; display:flex; flex-direction:column; }
   .bit-route-list { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0 14px; }
   .bit-route { background:var(--surface2); border:1px solid var(--border); border-radius:6px; padding:9px 12px; font-size:13px; line-height:1.5; }
   .bit-route.online { border-color:var(--success); }
@@ -129,13 +140,10 @@
   .btn:disabled { opacity:.45; cursor:not-allowed; }
   .bit-job-search { width:260px; max-width:48%; background:#000; border:1px solid var(--border); border-radius:5px; color:#fff; font-size:13px; padding:7px 10px; outline:none; }
   .bit-job-search:focus { border-color:var(--accent); }
-  .bit-job-list { flex:1 1 auto; max-height:58vh; overflow:auto; min-height:180px; border:1px solid var(--border); border-radius:6px; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y; }
-  .bit-job-row { display:grid; grid-template-columns:minmax(165px,1.4fr) minmax(65px,.7fr) minmax(135px,1.15fr) minmax(72px,.65fr) minmax(140px,1.1fr) minmax(48px,.45fr) minmax(140px,1.15fr) minmax(56px,.55fr); width:100%; min-width:890px; box-sizing:border-box; gap:7px; align-items:center; padding:10px; border-bottom:1px solid var(--border); font-size:12px; line-height:1.35; }
+  .bit-job-list { overflow-y:auto; overflow-x:hidden; min-height:180px; border:1px solid var(--border); border-radius:6px; }
+  .bit-job-row { display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,1.12fr) minmax(0,.8fr) minmax(0,1.15fr) minmax(38px,.45fr) minmax(0,1.55fr) minmax(44px,.55fr); width:100%; min-width:0; gap:7px; align-items:center; padding:10px; border-bottom:1px solid var(--border); font-size:12px; line-height:1.35; }
   .bit-job-row.bit-job-header { position:sticky; top:0; background:var(--surface2); color:#90ee90; z-index:1; }
   .bit-job-row > div { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .bit-job-row:not(.bit-job-header) > div:nth-child(1),
-  .bit-job-row:not(.bit-job-header) > div:nth-child(3),
-  .bit-job-row:not(.bit-job-header) > .bit-job-message { white-space:normal; overflow-wrap:anywhere; text-overflow:clip; }
   .bit-job-message { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#fff; }
   .bit-badge { display:inline-block; margin-top:3px; padding:1px 5px; border-radius:8px; border:1px solid var(--border); font-size:9px; font-weight:normal; }
   .bit-job-row .bit-badge { margin-top:0; padding:2px 6px; font-size:11px; }
@@ -146,36 +154,23 @@
   .bit-badge.pending, .bit-badge.processing, .bit-badge.retry_wait, .bit-badge.routing_required { color:var(--warning); border-color:var(--warning); }
   .bit-badge.needs_attention { color:var(--danger); border-color:var(--danger); }
   .operation-log-btn { border-color:var(--unused); color:#c4b5fd; min-width:104px; }
-  .operation-modal { width:min(1280px, 96vw); max-height:90vh; display:flex; flex-direction:column; }
+  .operation-modal { width:min(1180px, 96vw); max-height:90vh; display:flex; flex-direction:column; }
   .operation-log-list { overflow:auto; min-height:220px; border:1px solid var(--border); border-radius:6px; }
-  .operation-log-row { display:grid; grid-template-columns:145px 90px 80px 70px 75px 165px 105px 105px 100px 56px; width:100%; min-width:1120px; gap:9px; align-items:center; padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px; line-height:1.35; }
+  .operation-log-row { display:grid; grid-template-columns:145px 90px 85px 70px 75px 165px 105px 105px 110px; gap:9px; align-items:center; min-width:1040px; padding:10px 12px; border-bottom:1px solid var(--border); font-size:12px; line-height:1.35; }
   .operation-log-row.operation-log-header { position:sticky; top:0; background:var(--surface2); color:#90ee90; z-index:1; }
-  .operation-log-row > div { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .operation-log-row > div:nth-child(3) { font-size:13px; }
-  .operation-log-delete-btn { padding:3px 7px; border-radius:4px; border:1px solid var(--danger); background:transparent; color:#ff8b96; font-size:10px; cursor:pointer; white-space:nowrap; }
-  .operation-log-delete-btn:hover { background:rgba(255,71,87,.15); }
-  .excel-import-modal { width:min(1280px, calc(100vw - 24px)); max-width:calc(100vw - 24px); max-height:90vh; display:flex; flex-direction:column; }
-  .excel-import-summary { color:#fff; font-size:13px; line-height:1.6; margin:8px 0 10px; }
-  .excel-import-table-wrap { flex:1 1 auto; min-height:180px; max-height:62vh; overflow:auto; border:1px solid var(--border); border-radius:6px; }
-  .excel-import-table { width:100%; min-width:1080px; table-layout:fixed; }
-  .excel-import-table th { position:sticky; top:0; z-index:1; padding:8px 7px; background:var(--surface2); font-size:11px; text-align:left; }
-  .excel-import-table td { padding:7px; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .excel-import-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
 
   @media (max-width: 720px) {
     html, body { width:100%; max-width:100%; min-width:0; overflow-x:hidden; }
-    .header { width:100%; max-width:100vw; min-width:0; padding:10px 8px; gap:8px; justify-content:flex-start; overflow:hidden; }
-    .header > div:first-child { flex:0 1 auto; min-width:0; overflow:hidden; }
-    .header > div:last-child { flex:1 1 0; min-width:0; max-width:100%; flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; }
-    .header .logo { flex:0 0 auto; font-size:1rem; white-space:nowrap; }
-    .header .sync-info { min-width:0; max-width:92px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .header .btn { padding:5px 7px; font-size:9px; }
+    .header { width:100%; max-width:100vw; min-width:0; padding:clamp(5px,1.6vw,10px) clamp(4px,1.4vw,8px); gap:clamp(2px,.8vw,8px); justify-content:space-between; flex-wrap:nowrap; overflow:hidden; }
+    .header > div:first-child { display:flex; align-items:center; flex:0 1 auto; min-width:0; overflow:visible; white-space:nowrap; }
+    .header > div:last-child { display:flex; flex:0 1 auto; min-width:0; max-width:none; flex-wrap:nowrap; gap:clamp(1px,.55vw,4px) !important; overflow:visible; padding:0; }
+    .header .logo { flex:0 0 auto; font-size:clamp(8px,2.1vw,12px); white-space:nowrap; }
+    .header .sync-info { display:inline-block; min-width:0; max-width:clamp(48px,16vw,92px); margin-left:clamp(2px,.55vw,6px); font-size:clamp(5px,1.35vw,8px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .header .btn, .header label.btn { flex:0 1 auto; min-width:0 !important; padding:clamp(2px,.65vw,5px) clamp(2px,.75vw,6px); gap:1px; font-size:clamp(5.5px,1.55vw,9px); line-height:1.15; white-space:nowrap; }
     .bit-job-toolbar { align-items:flex-start; flex-wrap:wrap; gap:7px; }
     .bit-job-toolbar-actions { width:100%; flex-basis:100%; justify-content:space-between; }
     .bit-job-toolbar-actions .bit-job-search { flex:1; width:auto; }
-    .bit-modal { width:calc(100vw - 16px); max-width:calc(100vw - 16px); padding:12px; }
-    .bit-job-list { max-height:58vh; }
-    .bit-job-row { min-width:890px; padding:8px 10px; font-size:11px; }
     .stats-bar, .unused-container, .main-content { width:100%; padding-left:8px; padding-right:8px; box-sizing:border-box; }
     .stats-bar { gap:4px; overflow:hidden; grid-template-columns:repeat(5, minmax(0, 1fr)); }
     .stat-card { padding:7px 5px; min-width:0; }
@@ -254,12 +249,6 @@
     .trash-actions .btn { padding:3px 7px !important; font-size:9px; }
   }
 
-  @media (orientation: landscape) and (max-height: 600px) and (pointer: coarse) {
-    html, body { max-width:none; overflow-x:auto; touch-action:pan-x pan-y pinch-zoom; }
-    .table-wrap { width:100%; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; touch-action:pan-x pan-y pinch-zoom; }
-    .user-table { width:max-content; min-width:100%; table-layout:auto; }
-  }
-
   @media (max-width: 360px) {
     .trash-row { grid-template-columns:20px minmax(68px, 78px) minmax(68px, 80px) minmax(64px, 1fr) 92px; gap:4px; font-size:9px; }
     .trash-status .bit-badge { padding:1px 2px; font-size:7px; }
@@ -277,7 +266,7 @@
 
 <header class="header">
   <div style="display:flex; align-items:center">
-    <div class="logo">⚡ 比特</div>
+    <div class="logo">⚡ 小强</div>
     <span class="sync-info" id="syncStatus">连接中...</span>
   </div>
   <div style="display:flex; gap:8px;">
@@ -285,7 +274,7 @@
     <button class="btn btn-ghost operation-log-btn" id="operationLogButton" onclick="openOperationLogModal()">📝 操作日志</button>
     <button class="btn btn-ghost bit-link-btn" id="bitLinkButton" onclick="openBitLinkModal()">🔗 联动检测中</button>
     <button class="btn btn-ghost" onclick="downloadTemplate()">📥 导出模版</button>
-    <label class="btn btn-ghost" style="cursor:pointer">📤 导入 Excel <input id="excelImportInput" type="file" hidden accept=".xlsx, .xls" onchange="importExcel(this)"></label>
+    <label class="btn btn-ghost" style="cursor:pointer">📤 导入 Excel <input type="file" hidden accept=".xlsx, .xls" onchange="importExcel(this)"></label>
     <button class="btn btn-secondary" onclick="openMultiUnusedModal()" style="background:var(--unused); color:#000">＋ 批量增名额</button>
   </div>
 </header>
@@ -294,7 +283,7 @@
 
 <div class="unused-container">
   <div class="unused-box">
-    <div style="font-size: 12px; color: var(--unused); font-weight: bold;">🔑 待激活名额</div>
+    <div style="font-size: 11px; color: var(--unused); font-weight: bold;">🔑 待激活名额</div>
     <div class="unused-list" id="unusedGrid"></div>
   </div>
 </div>
@@ -306,18 +295,17 @@
         <tr>
           <th width="48"><input type="checkbox" id="selectAll" onclick="toggleSelectAll('userTableBody', 'selectAll')"></th>
           <th width="48">复制</th>
-          <th width="78">归属<input type="text" class="col-filter" data-col="owner" oninput="onFilterInput()"></th>
-          <th width="80">窗口<span class="header-stat" id="statWindows">/0</span><input type="text" class="col-filter" data-col="windows" oninput="onFilterInput()"></th>
-          <th width="96">用户<span class="header-stat" id="statUsers">/0</span><input type="text" class="col-filter" data-col="username" oninput="onFilterInput()"></th>
+          <th width="60" class="owner-header">归属<input type="text" class="col-filter" data-col="owner" oninput="onFilterInput()"></th>
+          <th width="68" class="window-header"><span class="header-metric">窗口<span class="header-stat" id="statWindows">/0</span></span><input type="text" class="col-filter" data-col="windows" oninput="onFilterInput()"></th>
+          <th width="96" class="user-header"><span class="header-metric">用户<span class="header-stat" id="statUsers">/0</span></span><input type="text" class="col-filter" data-col="username" oninput="onFilterInput()"></th>
           <th width="86">密码<input type="text" class="col-filter" data-col="password" oninput="onFilterInput()"></th>
-          <th width="90">微信<input type="text" class="col-filter" data-col="wechat" oninput="onFilterInput()"></th>
+          <th width="90" class="wechat-header">微信<input type="text" class="col-filter" data-col="wechat" oninput="onFilterInput()"></th>
           <th width="90">咸鱼<input type="text" class="col-filter" data-col="xianyu" oninput="onFilterInput()"></th>
           <th width="88">激活时间<input type="text" class="col-filter" data-col="activeTime" oninput="onFilterInput()"></th>
           <th width="88">到期日期<input type="text" class="col-filter" data-col="expiry" oninput="onFilterInput()"></th>
-          <th width="72">金额<span class="header-stat" id="statAmount">/0</span><input type="text" class="col-filter" data-col="amount" oninput="onFilterInput()"></th>
+          <th width="72" class="amount-header"><span class="header-metric">金额<span class="header-stat" id="statAmount">/0</span></span><input type="text" class="col-filter" data-col="amount" oninput="onFilterInput()"></th>
           <th width="76" class="status-header">状态</th>
           <th width="76" class="window-change-header">修改窗口</th>
-          <th width="80" class="rename-header">修改用户名</th>
           <th width="144" class="actions-header">操作</th>
         </tr>
       </thead>
@@ -372,7 +360,7 @@
     </div>
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
       <button class="btn btn-ghost" onclick="closeWindowChangeModal()">取消</button>
-      <button class="btn btn-primary" onclick="confirmWindowChange()">确认</button>
+      <button class="btn btn-primary" id="windowChangeConfirmButton" onclick="confirmWindowChange()">确认</button>
     </div>
   </div>
 </div>
@@ -407,19 +395,6 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="renameUserModal" onclick="if(event.target===this)closeRenameUserModal()">
-  <div class="modal" style="width:min(460px, calc(100vw - 24px));">
-    <h3 style="font-size:16px; color:var(--accent); margin-bottom:8px;">修改用户名</h3>
-    <div id="renameUserCurrent" style="font-size:12px; color:#fff; margin-bottom:10px;"></div>
-    <input id="renameUserInput" class="edit-input" autocomplete="off" placeholder="请输入新用户名" onkeydown="if(event.key==='Enter')confirmRenameUser()">
-    <div style="font-size:12px; color:#fff; line-height:1.6; margin-top:10px;">确认后会创建联动任务，同步修改 BitBrowser 中的真实员工名称。</div>
-    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
-      <button class="btn btn-ghost" onclick="closeRenameUserModal()">取消</button>
-      <button class="btn btn-primary" onclick="confirmRenameUser()">确认</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="multiUnusedModal">
   <div class="modal">
     <h3 style="font-size:14px; margin-bottom:10px; color:var(--unused)">批量新增名额</h3>
@@ -427,36 +402,6 @@
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px">
       <button class="btn btn-ghost" onclick="closeModal('multiUnusedModal')">取消</button>
       <button class="btn btn-secondary" onclick="confirmMultiUnused()" style="background:var(--unused)">确认添加</button>
-    </div>
-  </div>
-</div>
-
-<div class="modal-overlay" id="excelImportPreviewModal" onclick="if(event.target===this)closeExcelImportPreview()">
-  <div class="modal excel-import-modal">
-    <h3 style="font-size:17px; color:var(--accent);">Excel 导入预览</h3>
-    <div class="excel-import-summary" id="excelImportPreviewSummary"></div>
-    <div class="excel-import-table-wrap">
-      <table class="excel-import-table">
-        <thead>
-          <tr>
-            <th style="width:48px; text-align:center;">序号</th>
-            <th style="width:90px;">归属</th>
-            <th style="width:70px;">窗口</th>
-            <th style="width:125px;">用户名</th>
-            <th style="width:105px;">密码</th>
-            <th style="width:120px;">微信</th>
-            <th style="width:120px;">咸鱼</th>
-            <th style="width:105px;">激活时间</th>
-            <th style="width:75px;">金额</th>
-            <th style="width:105px;">到期日期</th>
-          </tr>
-        </thead>
-        <tbody id="excelImportPreviewBody"></tbody>
-      </table>
-    </div>
-    <div class="excel-import-actions">
-      <button class="btn btn-ghost" onclick="closeExcelImportPreview()">取消</button>
-      <button class="btn btn-primary" id="confirmExcelImportButton" onclick="confirmExcelImportPreview()">确认导入</button>
     </div>
   </div>
 </div>
@@ -477,8 +422,7 @@
     <div class="bit-job-toolbar">
       <div class="bit-job-title">最近联动任务 <span class="bit-job-count" id="bitJobSearchCount"></span></div>
       <div class="bit-job-toolbar-actions">
-        <button class="btn btn-ghost btn-sm" id="clearBitTaskLogsButton" style="color:var(--danger); border-color:var(--danger);" onclick="clearBitTaskLogs()">清空任务日志</button>
-      <input type="text" id="bitJobSearchInput" class="bit-job-search" placeholder="🔍 全局搜索：员工号 / 微信 / 动作 / 日期 / 结果..." autocomplete="off" oninput="renderBitIntegration()">
+        <input type="text" id="bitJobSearchInput" class="bit-job-search" placeholder="🔍 全局搜索：员工号 / 微信 / 动作 / 日期 / 结果..." autocomplete="off" oninput="renderBitIntegration()">
       </div>
     </div>
     <div id="bitJobList" class="bit-job-list"></div>
@@ -499,10 +443,7 @@
     </div>
     <div class="bit-job-toolbar">
       <div class="bit-job-title">激活 / 续费 <span class="bit-job-count" id="operationLogSearchCount"></span></div>
-      <div class="bit-job-toolbar-actions">
-        <button class="btn btn-ghost btn-sm" id="clearOperationLogsButton" style="color:var(--danger); border-color:var(--danger);" onclick="clearOperationLogs()">清空日志</button>
-        <input type="text" id="operationLogSearchInput" class="bit-job-search" placeholder="🔍 搜索：员工号 / 操作 / 窗口 / 金额 / 日期..." autocomplete="off" oninput="renderOperationLogs()">
-      </div>
+      <input type="text" id="operationLogSearchInput" class="bit-job-search" placeholder="🔍 搜索：员工号 / 操作 / 窗口 / 金额 / 日期..." autocomplete="off" oninput="renderOperationLogs()">
     </div>
     <div id="operationLogList" class="operation-log-list"></div>
   </div>
@@ -517,21 +458,277 @@ const STORAGE_KEY = 'uf_v45_db';
 const ROW_ID = 1; 
 
 const DEFAULT_WINDOWS = '100';
-const DEFAULT_AMOUNT = '32';
+const DEFAULT_AMOUNT = '15';
 const DEFAULT_PWD = '123456';
 const BIT_CONNECTOR_OFFLINE_MS = 60000;
 const BIT_CONNECTOR_RETENTION_MS = 24 * 60 * 60 * 1000;
 const BIT_CONNECTOR_PRUNABLE_TASK_STATUSES = new Set(['routing_required', 'pending', 'processing', 'retry_wait', 'needs_attention']);
-const WINDOW_CHANGE_BASE_CENTS_BY_OWNER = Object.freeze({
-    '知音科技': 3000,
-    '雪莲': 3000,
-    '小强': 1500,
-    '安然宝贝': 3000
-});
+const DEFAULT_OWNER = '小强';
+const PAYMENT_TENANT = 'xiaoqiang';
+const PAYMENT_API_BASE = 'https://pay.bite5678.fun/payment-api/index.php';
+const WINDOW_CHANGE_BASE_CENTS = 1500;
 
-function windowChangeBaseCentsForOwner(owner) {
-    const value = WINDOW_CHANGE_BASE_CENTS_BY_OWNER[String(owner || '').trim()];
-    return Number.isSafeInteger(value) ? value : null;
+function recordMonthlyAmountCents(record, allowZero = false) {
+    const raw = String(record?.amount ?? '').trim();
+    if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return null;
+    const cents = Math.round(Number(raw) * 100);
+    if (!Number.isSafeInteger(cents) || cents < (allowZero ? 0 : 1)) return null;
+    return cents;
+}
+
+function formatMoneyCents(cents) {
+    return (Number(cents) / 100).toFixed(2);
+}
+
+function validRenewalPriceOrAlert(record) {
+    const cents = recordMonthlyAmountCents(record);
+    if (cents === null) {
+        alert('❌ 当前金额无效，请先联系管理员修正金额。');
+        return null;
+    }
+    return cents / 100;
+}
+
+function isOwnerInScope(record) {
+    return String(record?.owner || '').trim() === DEFAULT_OWNER;
+}
+
+function findTaskSourceRecord(task, state = db) {
+    const sourceId = String(task?.sourceRecordId || task?.source_record_id || '');
+    const username = String(task?.username || '').trim().toLowerCase();
+    for (const listName of ['users', 'unused', 'trash']) {
+        const record = (state[listName] || []).find(item =>
+            (sourceId && String(item?.id || '') === sourceId) ||
+            (username && String(item?.username || '').trim().toLowerCase() === username)
+        );
+        if (record) return record;
+    }
+    return null;
+}
+
+function isTaskInOwnerScope(task, state = db) {
+    const sourceOwner = String(task?.sourceOwner || task?.source_owner || task?.recordSnapshot?.owner || '').trim();
+    if (sourceOwner) return sourceOwner === DEFAULT_OWNER;
+    const record = findTaskSourceRecord(task, state);
+    return Boolean(record && isOwnerInScope(record));
+}
+
+let db = { users: [], unused: [], trash: [], bitTasks: [], bitConnectors: [], bitInventory: [], bitUsernameRegistry: [], operationLogs: [] };
+let currentFilter = 'all';
+let newlyActivatedId = null;
+let renderedUserOrder = [];
+let baseSnapshot = null;
+let _isSaving = false;      // 保存锁，防止并发覆盖
+let _saveTimer = null;      // 防抖定时器
+let _hasPendingSave = false;// 是否有尚未提交的本地修改
+let _isSilentSave = false;  // 后台静默保存标记
+let _saveRetryTimer = null; // 保存失败后的重试定时器
+let _saveRevision = 0;      // 每次本地修改递增；用于识别请求期间产生的新修改
+let _filterTimer = null;    // 列筛选防抖
+let _trashFilterTimer = null;// 回收站搜索防抖
+let _idleRenderTimer = null; // 编辑空闲后再刷新整表，避免连续编辑被重绘打断
+let _isSyncing = false;      // 拉取锁，防止定时器重叠请求
+let _bitRefreshPromise = null;
+let _isSyncingConnectors = false;
+let _lastConnectorsSyncAt = 0;
+let _lastVisibilitySyncAt = 0;
+let _lastBitIntegrationSaveAt = 0;
+let connectorHeartbeatById = new Map();
+let activeConnectors = [];
+let bitConnectorRoutes = [];
+let bitIntegrationAvailable = null;
+let bitIntegrationMessage = '正在读取 MainData 零SQL任务队列';
+let lastKnownUpdatedAt = null; // 【乐观锁】云端最后的时间戳版本
+let pendingWindowChangeUserId = null;
+
+async function requestPaidOperation(operation, itemIds, title, options = {}) {
+    if (!globalThis.BitPayment) {
+        alert('❌ 支付组件没有加载，请检查 payment/payment-client.js 是否已上传。');
+        return null;
+    }
+    try {
+        return await BitPayment.checkout({
+            tenant: PAYMENT_TENANT,
+            operation,
+            itemIds,
+            title,
+            apiBaseUrl: PAYMENT_API_BASE,
+            ...options
+        });
+    } catch (error) {
+        console.error('[payment] checkout failed', error);
+        if (options.paymentIntentId) alert(`窗口付款订单暂时无法继续：\n${error?.message || error}\n\n订单锁仍会保留，确认状态后可用相同窗口数继续。`);
+        return null;
+    }
+}
+
+function paidLogDetails(payment, details = {}) {
+    return { ...details, ...(globalThis.BitPayment ? BitPayment.logDetails(payment) : {}) };
+}
+
+function paymentAlreadyApplied(payment, recordId, action) {
+    if (!payment?.orderNo) return false;
+    return (db.operationLogs || []).some(log =>
+        String(log?.paymentOrderNo || '') === String(payment.orderNo) &&
+        String(log?.sourceRecordId || '') === String(recordId || '') &&
+        String(log?.action || '') === String(action || '')
+    );
+}
+
+async function waitForPaidSave(timeoutMs = 30000) {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if (!_isSaving && _hasPendingSave) {
+            clearTimeout(_saveTimer);
+            _saveTimer = null;
+            await _doSaveToCloud();
+        }
+        if (!_isSaving && !_hasPendingSave) return true;
+        await new Promise(resolve => setTimeout(resolve, 120));
+    }
+    return false;
+}
+
+async function completePaidOperation(payment, result) {
+    const saved = await waitForPaidSave();
+    if (!saved) {
+        alert('✅ 已确认付款，但云端数据暂未保存成功。请不要重复付款，保持页面打开并检查网络。');
+        return false;
+    }
+    try {
+        await BitPayment.complete(payment, result || {});
+        return true;
+    } catch (error) {
+        console.error('[payment] completion failed', error);
+        alert('✅ 业务数据已保存，但支付订单收尾失败。请不要重复付款，稍后继续原操作或联系管理员核对订单号：' + payment.orderNo);
+        return false;
+    }
+}
+ 
+function activeWindowPaymentLock(record, nowMs = Date.now()) {
+    return globalThis.BitWindowPayment ? BitWindowPayment.activeLock(record, nowMs) : null;
+}
+
+function mergeWindowPaymentLocks(localLock, remoteLock) {
+    const isObject = value => value && typeof value === 'object';
+    if (!isObject(localLock)) return isObject(remoteLock) ? remoteLock : undefined;
+    if (!isObject(remoteLock)) return localLock;
+    if (String(localLock.id || '') !== String(remoteLock.id || '')) {
+        const localCreated = Date.parse(localLock.createdAt || localLock.statusUpdatedAt || '') || 0;
+        const remoteCreated = Date.parse(remoteLock.createdAt || remoteLock.statusUpdatedAt || '') || 0;
+        return localCreated >= remoteCreated ? localLock : remoteLock;
+    }
+    const priority = lock => ({
+        failed:1, expired:1, creating:2, pending:3,
+        applying:4, paid_pending:5, completed:6
+    }[String(lock?.status || '')] || 0);
+    const localPriority = priority(localLock);
+    const remotePriority = priority(remoteLock);
+    const localTime = Date.parse(localLock.statusUpdatedAt || localLock.updatedAt || '') || 0;
+    const remoteTime = Date.parse(remoteLock.statusUpdatedAt || remoteLock.updatedAt || '') || 0;
+    const preferred = localPriority > remotePriority || (localPriority === remotePriority && localTime >= remoteTime)
+        ? localLock : remoteLock;
+    const other = preferred === localLock ? remoteLock : localLock;
+    return { ...other, ...preferred };
+}
+
+function paidWindowSettlementPlan(record, pricing) {
+    if (!globalThis.BitWindowPayment) throw new Error('窗口付款流程组件没有加载。');
+    return BitWindowPayment.settlementPlan(record, pricing, WINDOW_CHANGE_BASE_CENTS);
+}
+
+function findWindowPaymentRecord(recordId) {
+    return db.users.find(item => String(item.id) === String(recordId) && isOwnerInScope(item)) || null;
+}
+
+async function refreshWindowPaymentCloud() {
+    const deadline = Date.now() + 30000;
+    while ((_isSaving || _hasPendingSave || _isSyncing) && Date.now() < deadline) {
+        if (!_isSaving && _hasPendingSave) await waitForPaidSave(Math.max(1000, deadline - Date.now()));
+        else await new Promise(resolve => setTimeout(resolve, 120));
+    }
+    if (_isSaving || _hasPendingSave || _isSyncing) throw new Error('云端仍在同步，请保持页面打开后重试。');
+    await syncFromCloud(false);
+}
+
+const windowPaymentFlow = globalThis.BitWindowPayment ? BitWindowPayment.create({
+    tenant: PAYMENT_TENANT,
+    baseCents: WINDOW_CHANGE_BASE_CENTS,
+    getRecord: findWindowPaymentRecord,
+    save: silent => saveToCloud(silent),
+    waitForSave: waitForPaidSave,
+    sync: refreshWindowPaymentCloud,
+    render,
+    enqueueQuota: async (record, targetWindows, payment) => enqueueBitJob(
+        record,
+        BIT_WINDOW_QUOTA_ACTION,
+        newBitDedupeKey('window-quota-paid', record, String(payment?.orderNo || targetWindows)),
+        { targetWindowCount: targetWindows }
+    ),
+    recordLog: recordOperationLog,
+    paidLogDetails,
+    isPaymentApplied: paymentAlreadyApplied,
+    completePayment: completePaidOperation
+}) : null;
+
+async function acquireWindowPaymentLock(record, quote) {
+    if (!windowPaymentFlow) throw new Error('窗口付款流程组件没有加载，请刷新页面后重试。');
+    return windowPaymentFlow.acquire(record, quote);
+}
+
+function windowPaymentCheckoutOptions(recordId, lock) {
+    if (!windowPaymentFlow) throw new Error('窗口付款流程组件没有加载，请刷新页面后重试。');
+    return {
+        paymentIntentId: String(lock.id || ''),
+        ...windowPaymentFlow.callbacks(recordId, lock.id)
+    };
+}
+
+async function applyPaidWindowChange(payment, recordId) {
+    if (!windowPaymentFlow) throw new Error('窗口付款流程组件没有加载，请刷新页面后重试。');
+    return windowPaymentFlow.applyPaid(payment, recordId);
+}
+
+let _autoResumingPaidOrders = false;
+
+// 已付款但未核销的窗口订单自动补核销：付款成功后页面崩溃/断网/关闭时，
+// 锁停留在 paid_pending，重新打开页面或下次同步后自动继续核销并下发额度任务，
+// 无需人工在弹窗里手动确认。
+async function autoResumePendingPaidOrders() {
+    if (_autoResumingPaidOrders) return;
+    if (_isSaving || _hasPendingSave || _isSyncing) return;
+    _autoResumingPaidOrders = true;
+    try {
+        const record = db.users.find(item => isOwnerInScope(item) && (() => {
+            const lock = activeWindowPaymentLock(item);
+            return lock && lock.status === 'paid_pending' && lock.businessApplied;
+        })()) || null;
+        if (!record) return;
+        const lock = activeWindowPaymentLock(record);
+        if (!lock || lock.status !== 'paid_pending' || !lock.businessApplied) return;
+        if (paymentAlreadyApplied({ orderNo: lock.orderNo }, record.id, 'add_windows')) return;
+        const payment = await requestPaidOperation(
+            'add_windows',
+            [record.id],
+            `小强 · ${record.username} · 继续核销窗口订单`,
+            {
+                windowDelta: Number(lock.windowDelta),
+                pricingContext: `${lock.baseWindows}|${lock.currentAmountCents}|${lock.expiry}|${lock.pricingDate}`,
+                ...windowPaymentCheckoutOptions(record.id, lock)
+            }
+        );
+        if (!payment) return;
+        const result = await applyPaidWindowChange(payment, record.id);
+        if (result?.completed) {
+            const statusEl = document.getElementById('syncStatus');
+            if (statusEl) statusEl.innerText = '✅ 已自动补核销已付款窗口订单';
+            render();
+        }
+    } catch (error) {
+        console.error('[payment] 自动补核销未完成，将在下次同步时重试:', error);
+    } finally {
+        _autoResumingPaidOrders = false;
+    }
 }
 
 function parseWindowChangeInput(value, currentWindows) {
@@ -565,163 +762,204 @@ function remainingWindowServiceDays(expiryDateStr, todayDateStr = getBeijingDate
     return Math.max(0, Math.round((expiryMs - todayMs) / 86400000));
 }
 
-function windowChangeMonthlyDeltaCents(delta, baseCents) {
+function windowChangeMonthlyDeltaCents(delta) {
     const value = Number(delta);
-    if (!Number.isSafeInteger(value) || value === 0 || !Number.isSafeInteger(baseCents) || baseCents < 1) return null;
-    return Math.round(baseCents * Math.abs(value) / 100);
-}
-
-function proratedWindowIncreaseCents(currentAmountCents, newAmountCents, remainingDays) {
-    const current = Number(currentAmountCents);
-    const next = Number(newAmountCents);
-    const days = Number(remainingDays);
-    if (!Number.isSafeInteger(current) || current < 0 || !Number.isSafeInteger(next) || next < current) return null;
-    if (!Number.isSafeInteger(days) || days < 0) return null;
-    const cents = Math.round((next - current) * days / 30);
+    if (!Number.isSafeInteger(value) || value === 0) return null;
+    const cents = Math.round(WINDOW_CHANGE_BASE_CENTS * Math.abs(value) / 100);
     return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
 }
 
-function recordMonthlyAmountCents(record, allowZero = false) {
-    const raw = String(record?.amount ?? '').trim();
-    if (!/^\d+(?:\.\d{1,2})?$/.test(raw)) return null;
-    const cents = Math.round(Number(raw) * 100);
-    if (!Number.isSafeInteger(cents) || cents < (allowZero ? 0 : 1)) return null;
-    return cents;
+function windowChangeFeeCents(delta, remainingDays) {
+    const value = Number(delta);
+    const days = Number(remainingDays);
+    if (!Number.isSafeInteger(value) || value <= 0 || !Number.isSafeInteger(days) || days < 0) return null;
+    const cents = Math.round(WINDOW_CHANGE_BASE_CENTS * value * days / 3000);
+    return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
 }
 
-function isUnassignedOwner(owner) {
-    return ['', '-', '—', '－'].includes(String(owner ?? '').trim());
+function activeWindowChangeTask(record) {
+    const task = (db.bitTasks || []).find(item => String(item.id) === String(record?.windowJobId || ''));
+    const status = String(task?.status || '');
+    return task && (BIT_PENDING_STATUSES.has(status) || status === 'needs_attention') ? task : null;
 }
 
-function proportionalWindowAmountCents(currentWindows, targetWindows, currentAmountCents) {
-    const current = Number(currentWindows);
-    const target = Number(targetWindows);
-    const amount = Number(currentAmountCents);
-    if (!Number.isSafeInteger(current) || current <= 0 || !Number.isSafeInteger(target) || target < 0) return null;
-    if (!Number.isSafeInteger(amount) || amount < 0) return null;
-    const nextAmount = Math.round(amount * target / current);
-    return Number.isSafeInteger(nextAmount) && nextAmount >= 0 ? nextAmount : null;
+function openWindowChangeModal(id) {
+    const record = db.users.find(item => String(item.id) === String(id) && isOwnerInScope(item));
+    if (!record) return alert('找不到该用户，请刷新后重试。');
+    pendingWindowChangeUserId = String(id);
+    const paymentLock = activeWindowPaymentLock(record);
+    document.getElementById('windowChangeUser').textContent = `${record.username}：当前 ${record.windows || 0} 窗口，月费 ¥${formatMoneyCents(recordMonthlyAmountCents(record, true) ?? 0)}；微信：${displayVal(record.wechat)}\n归属：${DEFAULT_OWNER}\n到期 ${record.expiry || '-'}`;
+    document.getElementById('windowChangeInput').value = paymentLock ? String(paymentLock.targetWindows || '') : '';
+    document.getElementById('windowChangePreview').textContent = paymentLock
+        ? (paymentLock.status === 'paid_pending' ? '该订单已付款，确认后将继续补执行并核销。' : '已有付款订单进行中，确认后将继续查询原订单。')
+        : '';
+    document.getElementById('windowChangeModal').classList.add('open');
+    setTimeout(() => document.getElementById('windowChangeInput').focus(), 0);
 }
 
-function windowAmountCentsAfterChange(record, targetWindows, delta) {
+function closeWindowChangeModal() {
+    document.getElementById('windowChangeModal').classList.remove('open');
+    pendingWindowChangeUserId = null;
+}
+
+function updateWindowChangePreview() {
+    const record = db.users.find(item => String(item.id) === String(pendingWindowChangeUserId));
+    const preview = document.getElementById('windowChangePreview');
     const currentWindows = Number(record?.windows);
-    const target = Number(targetWindows);
-    const change = Number(delta);
+    const change = parseWindowChangeInput(document.getElementById('windowChangeInput').value, currentWindows);
+    if (!record || !change) {
+        preview.textContent = '请输入最终窗口数（如 150、50），或输入相对变化（如 +50、-50）。';
+        return;
+    }
+    const { targetWindows, delta } = change;
+    if (delta === 0) {
+        preview.textContent = `当前已经是 ${currentWindows} 窗口，无需修改。`;
+        return;
+    }
+    const monthlyDeltaCents = windowChangeMonthlyDeltaCents(delta);
     const currentAmountCents = recordMonthlyAmountCents(record, true);
-    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || !Number.isSafeInteger(target) || target < 0) return null;
-    if (!Number.isSafeInteger(change) || change === 0 || target !== currentWindows + change || currentAmountCents === null) return null;
-
-    const baseCents = windowChangeBaseCentsForOwner(record?.owner);
-    if (baseCents !== null) {
-        const monthlyDeltaCents = windowChangeMonthlyDeltaCents(change, baseCents);
-        if (monthlyDeltaCents === null) return null;
-        const nextAmount = currentAmountCents + (change > 0 ? monthlyDeltaCents : -monthlyDeltaCents);
-        return Number.isSafeInteger(nextAmount) && nextAmount >= 0 ? nextAmount : null;
+    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || targetWindows < 0 || currentAmountCents === null || monthlyDeltaCents === null) {
+        preview.textContent = '当前窗口数、金额或修改后的窗口数无效。';
+        return;
     }
-    if (!isUnassignedOwner(record?.owner)) return null;
-    return proportionalWindowAmountCents(currentWindows, target, currentAmountCents);
-}
-
-function formatMoneyCents(cents) {
-    return (Number(cents) / 100).toFixed(2);
-}
-
-let db = { users: [], unused: [], trash: [], bitTasks: [], bitConnectors: [], bitInventory: [], bitUsernameRegistry: [], operationLogs: [] };
-let currentFilter = 'all';
-let newlyActivatedId = null;
-let renderedUserOrder = [];
-let baseSnapshot = null;
-let _isSaving = false;      // 保存锁，防止并发覆盖
-let _saveTimer = null;      // 防抖定时器
-let _hasPendingSave = false;// 是否有尚未提交的本地修改
-let _isSilentSave = false;  // 后台静默保存标记
-let _saveRetryTimer = null; // 保存失败后的重试定时器
-let _saveRevision = 0;      // 每次本地修改递增；用于识别请求期间产生的新修改
-let _filterTimer = null;    // 列筛选防抖
-let _trashFilterTimer = null;// 回收站搜索防抖
-let _idleRenderTimer = null; // 编辑空闲后再刷新整表，避免连续编辑被重绘打断
-let _isSyncing = false;      // 拉取锁，防止定时器重叠请求
-let _isClearingBitLogs = false;
-let _bitRefreshPromise = null;
-let _isSyncingConnectors = false;
-let _lastConnectorsSyncAt = 0;
-let _lastVisibilitySyncAt = 0;
-let _lastBitIntegrationSaveAt = 0;
-let syncStats = {
-    mainDataVersionReads: 0,
-    mainDataContentReads: 0,
-    mainDataWrites: 0,
-    taskReads: 0,
-    taskWrites: 0,
-    heartbeatReads: 0,
-    mainDataReadKB: 0,
-    mainDataWriteKB: 0,
-    taskReadKB: 0,
-    taskWriteKB: 0,
-    heartbeatKB: 0
-};
-function trackTraffic(type, action, bytes = 0) {
-    const kb = Math.max(0, Number(bytes) || 0) / 1024;
-    if (type === 'mainData') {
-        if (action === 'version_read') syncStats.mainDataVersionReads += 1;
-        if (action === 'content_read') { syncStats.mainDataContentReads += 1; syncStats.mainDataReadKB += kb; }
-        if (action === 'write') { syncStats.mainDataWrites += 1; syncStats.mainDataWriteKB += kb; }
-    } else if (type === 'task') {
-        if (action === 'read') { syncStats.taskReads += 1; syncStats.taskReadKB += kb; }
-        if (action === 'write') { syncStats.taskWrites += 1; syncStats.taskWriteKB += kb; }
-    } else if (type === 'heartbeat') {
-        if (action === 'read') { syncStats.heartbeatReads += 1; syncStats.heartbeatKB += kb; }
+    const newAmountCents = currentAmountCents + (delta > 0 ? monthlyDeltaCents : -monthlyDeltaCents);
+    if (newAmountCents < 0) {
+        preview.textContent = '修改后月费不能小于 0 元。';
+        return;
     }
-    console.log(`[Supabase Traffic] ${type} ${action} +${kb.toFixed(2)}KB | mainData read ${syncStats.mainDataReadKB.toFixed(1)}KB / write ${syncStats.mainDataWriteKB.toFixed(1)}KB | task ${syncStats.taskReadKB.toFixed(1)}KB / ${syncStats.taskWriteKB.toFixed(1)}KB | heartbeat ${syncStats.heartbeatKB.toFixed(1)}KB`);
-}
-let connectorHeartbeatById = new Map();
-let activeConnectors = [];
-let bitConnectorRoutes = [];
-let bitIntegrationAvailable = null;
-let bitIntegrationMessage = '正在读取 MainData 零SQL任务队列';
-let lastKnownUpdatedAt = null; // 【乐观锁】云端最后的时间戳版本
-let pendingWindowChangeUserId = null;
-let pendingRenameUserId = null;
-let pendingExcelImport = null;
-let _isConfirmingExcelImport = false;
-
-function activeWindowPaymentLock(record, nowMs = Date.now()) {
-    const lock = record?.windowPaymentLock;
-    if (!lock || typeof lock !== 'object') return null;
-    const status = String(lock.status || '');
-    if (['paid_pending', 'applying'].includes(status)) return lock;
-    return ['creating', 'pending'].includes(status) ? lock : null;
-}
-
-function mergeWindowPaymentLocks(localLock, remoteLock) {
-    const isObject = value => value && typeof value === 'object';
-    if (!isObject(localLock)) return isObject(remoteLock) ? remoteLock : undefined;
-    if (!isObject(remoteLock)) return localLock;
-    if (String(localLock.id || '') !== String(remoteLock.id || '')) {
-        const localCreated = Date.parse(localLock.createdAt || localLock.statusUpdatedAt || '') || 0;
-        const remoteCreated = Date.parse(remoteLock.createdAt || remoteLock.statusUpdatedAt || '') || 0;
-        return localCreated >= remoteCreated ? localLock : remoteLock;
+    if (delta > 0) {
+        const remainingDays = remainingWindowServiceDays(record.expiry);
+        if (remainingDays === null) {
+            preview.textContent = '到期日期无效，请先联系管理员修正。';
+            return;
+        }
+        if (remainingDays === 0) {
+            preview.textContent = '到期日当天或已过期，已无剩余计费天数，请先续费再增加窗口。';
+            return;
+        }
+        const feeCents = windowChangeFeeCents(delta, remainingDays);
+        if (!Number.isSafeInteger(feeCents) || feeCents < 1) {
+            preview.textContent = '本次增加窗口金额无效或低于最小支付金额，请联系管理员。';
+            return;
+        }
+        preview.textContent = `${currentWindows} → ${targetWindows} 窗口；剩余 ${remainingDays} 天，本次支付 ¥${formatMoneyCents(feeCents)}；新月费 ¥${formatMoneyCents(newAmountCents)}`;
+        return;
     }
-    const priority = lock => ({
-        failed:1, expired:1, creating:2, pending:3,
-        applying:4, paid_pending:5, completed:6
-    }[String(lock?.status || '')] || 0);
-    const localPriority = priority(localLock);
-    const remotePriority = priority(remoteLock);
-    const localTime = Date.parse(localLock.statusUpdatedAt || localLock.updatedAt || '') || 0;
-    const remoteTime = Date.parse(remoteLock.statusUpdatedAt || remoteLock.updatedAt || '') || 0;
-    const preferred = localPriority > remotePriority || (localPriority === remotePriority && localTime >= remoteTime)
-        ? localLock : remoteLock;
-    const other = preferred === localLock ? remoteLock : localLock;
-    return { ...other, ...preferred };
+    preview.textContent = `${currentWindows} → ${targetWindows} 窗口；无需付款、不退款；新月费 ¥${formatMoneyCents(newAmountCents)}`;
 }
 
-function blockForWindowPayment(record, action = '当前操作') {
-    const lock = activeWindowPaymentLock(record);
-    if (!lock) return false;
-    const orderText = lock.orderNo ? `\n订单号：${lock.orderNo}` : '';
-    alert(`${record.username || '该员工号'}存在${lock.status === 'paid_pending' ? '已付款待处理订单' : '进行中的窗口付款订单'}，${action}暂不可执行。${orderText}`);
-    return true;
+async function confirmWindowChange() {
+    const recordId = pendingWindowChangeUserId;
+    if (!recordId) return alert('找不到待修改的用户，请刷新后重试。');
+    if (!(await ensureCloudInitializedForAction())) return false;
+    try { await refreshWindowPaymentCloud(); } catch (error) { return alert(error?.message || error); }
+    let record = db.users.find(item => String(item.id) === String(recordId) && isOwnerInScope(item));
+    if (!record) return alert('找不到该用户，请刷新后重试。');
+    const resumablePayment = activeWindowPaymentLock(record);
+    if (resumablePayment?.status === 'paid_pending' && resumablePayment.businessApplied) {
+        closeWindowChangeModal();
+        try {
+            const payment = await requestPaidOperation(
+                'add_windows',
+                [recordId],
+                `小强 · ${record.username} · 继续核销窗口订单`,
+                {
+                    windowDelta: Number(resumablePayment.windowDelta),
+                    pricingContext: `${resumablePayment.baseWindows}|${resumablePayment.currentAmountCents}|${resumablePayment.expiry}|${resumablePayment.pricingDate}`,
+                    ...windowPaymentCheckoutOptions(recordId, resumablePayment)
+                }
+            );
+            if (!payment) return false;
+            const result = await applyPaidWindowChange(payment, recordId);
+            return Boolean(result?.completed);
+        } catch (error) {
+            alert(`已付款订单暂未完成核销：\n${bitSetupMessage(error)}\n\n请勿重复付款，稍后继续原操作。`);
+            return false;
+        }
+    }
+    const currentWindows = Number(record.windows);
+    const currentPaymentLock = activeWindowPaymentLock(record);
+    const rawActualBeforePayment = record.bitWindowQuota;
+    const actualBeforePayment = Number(rawActualBeforePayment);
+    if (!currentPaymentLock && rawActualBeforePayment !== null && rawActualBeforePayment !== undefined && rawActualBeforePayment !== '' && Number.isSafeInteger(actualBeforePayment) && actualBeforePayment >= 0 && actualBeforePayment !== currentWindows) {
+        return alert(`检测到BitBrowser实际额度为 ${actualBeforePayment}，网页业务窗口为 ${currentWindows}，正在自动对账窗口和月费。请等待约10秒后再发起付款。`);
+    }
+    const change = parseWindowChangeInput(document.getElementById('windowChangeInput').value, currentWindows);
+    if (!change) return alert('请输入最终窗口数（如 150、50），或输入相对变化（如 +50、-50）。');
+    const { targetWindows, delta } = change;
+    if (delta === 0) return alert(`当前已经是 ${currentWindows} 窗口，无需修改。`);
+    const monthlyDeltaCents = windowChangeMonthlyDeltaCents(delta);
+    const currentAmountCents = recordMonthlyAmountCents(record, true);
+    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || targetWindows < 0) return alert('修改后的窗口数必须是大于等于 0 的整数。');
+    if (currentAmountCents === null || monthlyDeltaCents === null) return alert('当前金额无效，请联系管理员修正。');
+    const newAmountCents = currentAmountCents + (delta > 0 ? monthlyDeltaCents : -monthlyDeltaCents);
+    if (newAmountCents < 0) return alert('修改后月费不能小于 0 元。');
+    const remainingDays = delta > 0 ? remainingWindowServiceDays(record.expiry) : null;
+    if (delta > 0 && remainingDays === null) return alert('当前到期日期无效，请先联系管理员修正。');
+    if (delta > 0 && remainingDays === 0) return alert('到期日当天或已过期，已无剩余计费天数，请先续费再增加窗口。');
+    const feeCents = delta > 0 ? windowChangeFeeCents(delta, remainingDays) : 0;
+    if (delta > 0 && (!Number.isSafeInteger(feeCents) || feeCents < 1)) return alert('本次增加窗口金额低于最小支付金额，请联系管理员。');
+    if (activeWindowChangeTask(record)) return alert('该员工号已有修改窗口任务未完成，请等待完成或先在联动状态中取消。');
+
+    if (delta > 0) {
+        try {
+            const pricingDate = getBeijingDateStr();
+            const lock = await acquireWindowPaymentLock(record, {
+                baseWindows: currentWindows,
+                targetWindows,
+                windowDelta: delta,
+                currentAmountCents,
+                newAmountCents,
+                feeCents,
+                expiry: String(record.expiry || '').trim(),
+                pricingDate,
+                remainingDays
+            });
+            closeWindowChangeModal();
+            const pricingContext = `${lock.baseWindows}|${lock.currentAmountCents}|${lock.expiry}|${lock.pricingDate}`;
+            const payment = await requestPaidOperation(
+                'add_windows',
+                [recordId],
+                `小强 · ${record.username} · 增加${lock.windowDelta}窗口`,
+                {
+                    windowDelta: Number(lock.windowDelta),
+                    pricingContext,
+                    ...windowPaymentCheckoutOptions(recordId, lock)
+                }
+            );
+            if (!payment) return false;
+            const result = await applyPaidWindowChange(payment, recordId);
+            if (result?.plan?.manualExtraWindows > 0) {
+                alert(`支付订单已完成；BitBrowser实际额度高于订单目标，已保留实际 ${result.plan.finalWindows} 窗口并同步新月费。`);
+            }
+            return Boolean(result?.completed);
+        } catch (error) {
+            const latest = findWindowPaymentRecord(recordId);
+            const orderNo = latest?.windowPaymentLock?.orderNo;
+            alert(`窗口付款处理未完成：\n${bitSetupMessage(error)}\n\n${orderNo ? '订单已保留为“已付款待处理”，请勿重复付款。订单号：' + orderNo : '尚未进入付款时不会扣款；已有订单时请稍后用相同窗口数继续。'}`);
+            return false;
+        }
+    }
+
+    if (activeWindowPaymentLock(record)) {
+        return alert('该员工号已有付款订单进行中，付款完成或订单超时前不能减少窗口。');
+    }
+    closeWindowChangeModal();
+
+    try {
+        await enqueueBitJob(record, BIT_WINDOW_QUOTA_ACTION, newBitDedupeKey('window-quota', record, `${targetWindows}-${Date.now()}`), { targetWindowCount:targetWindows });
+        record.windows = targetWindows;
+        record.windowTarget = targetWindows;
+        record.amount = formatMoneyCents(newAmountCents);
+        recordOperationLog(record, 'window_reduce', { operatedAt:new Date().toISOString(), windows:targetWindows, amount:record.amount });
+        saveToCloud();
+        render();
+        alert(`已提交减少窗口任务：${currentWindows} → ${targetWindows}，无需付款。`);
+        return true;
+    } catch (error) {
+        alert(`减少窗口任务创建失败：\n${bitSetupMessage(error)}`);
+        return false;
+    }
 }
 // ─────────────────── 工具函数：北京时间与日期 ───────────────────
 
@@ -795,20 +1033,18 @@ function getStatus(dateStr) {
 const BIT_PENDING_STATUSES = new Set(['routing_required', 'pending', 'processing', 'retry_wait']);
 const BIT_SUPERSEDABLE_STATUSES = new Set(['routing_required', 'pending', 'retry_wait', 'needs_attention']);
 const BIT_CANCELLABLE_STATUSES = new Set(['routing_required', 'pending', 'retry_wait', 'needs_attention']);
-const BIT_LOG_STATUSES = new Set(['success', 'resolved', 'cancelled']);
 const BIT_WINDOW_QUOTA_ACTION = 'set_window_quota';
-const BIT_RENAME_ACTION = 'rename';
 const BIT_STATUS_LABELS = {
     routing_required: '等待前缀路由', pending: '待执行', processing: '执行中', retry_wait: '等待重试',
     success: '已完成', needs_attention: '需人工处理', resolved: '已解决', cancelled: '已取消'
 };
 const BIT_ACTION_LABELS = {
     disable: '停用员工号', enable: '启用员工号', recover: '恢复员工号', delete: '删除员工号',
-    set_window_quota: '修改窗口数', rename: '修改用户名'
+    set_window_quota: '修改窗口数'
 };
 const BIT_RESULT_LABELS = {
     deleted: '已删除', recovered: '已恢复', disabled: '已停用', enabled: '已启用',
-    window_quota_updated: '窗口数已更新', username_updated: '用户名已修改', cancelled_by_user: '用户已取消',
+    window_quota_updated: '窗口数已更新', cancelled_by_user: '用户已取消',
     resolved_by_newer_task: '已被较新任务解决', superseded_by_newer_task: '已被较新任务替代',
     window_quota_cancelled_by_delete: '删除员工号时已取消窗口数任务'
 };
@@ -842,26 +1078,8 @@ function newBitId() {
     return 'job-' + Date.now() + '-' + Math.random().toString(16).slice(2) + '-' + Math.random().toString(16).slice(2);
 }
 
-function findTaskRecordForDisplay(task, state = db) {
-    const sourceId = String(task?.sourceRecordId || task?.source_record_id || '');
-    const username = String(task?.username || '').trim().toLowerCase();
-    if (sourceId) {
-        for (const listName of ['users', 'unused', 'trash']) {
-            const record = (state[listName] || []).find(item => String(item?.id || '') === sourceId);
-            if (record) return record;
-        }
-    }
-    if (username) {
-        for (const listName of ['users', 'unused', 'trash']) {
-            const record = (state[listName] || []).find(item => String(item?.username || '').trim().toLowerCase() === username);
-            if (record) return record;
-        }
-    }
-    return task?.recordSnapshot && typeof task.recordSnapshot === 'object' ? task.recordSnapshot : null;
-}
-
 function operationLogsInScope() {
-    return db.operationLogs || [];
+    return (db.operationLogs || []).filter(log => String(log?.owner || '').trim() === DEFAULT_OWNER);
 }
 
 function recordOperationLog(record, action, details = {}) {
@@ -872,14 +1090,25 @@ function recordOperationLog(record, action, details = {}) {
         sourceRecordId: String(record.id || ''),
         username: String(record.username || ''),
         wechat: String(record.wechat || details.wechat || ''),
-        owner: String(record.owner || ''),
+        owner: String(record.owner || DEFAULT_OWNER),
         action,
         activeDate: String(record.activeTime || details.activeDate || ''),
         operatedAt: String(details.operatedAt || new Date().toISOString()),
         expiryBefore: String(details.expiryBefore || ''),
         expiryAfter: String(details.expiryAfter || record.expiry || ''),
         windows: String(details.windows ?? record.windows ?? ''),
-        amount: String(details.paymentAmount ?? details.amount ?? record.amount ?? '')
+        amount: String(details.paymentAmount ?? details.amount ?? record.amount ?? ''),
+        paymentOrderNo: String(details.paymentOrderNo || ''),
+        paymentIntentId: String(details.paymentIntentId || ''),
+        paymentAmount: String(details.paymentAmount || ''),
+        alipayTradeNo: String(details.alipayTradeNo || ''),
+        paymentTenant: String(details.paymentTenant || ''),
+        windowsBefore: String(details.windowsBefore ?? ''),
+        amountBefore: String(details.amountBefore ?? ''),
+        paidTargetWindows: String(details.paidTargetWindows ?? ''),
+        actualWindows: String(details.actualWindows ?? ''),
+        manualExtraWindows: String(details.manualExtraWindows ?? ''),
+        syncSource: String(details.syncSource || '')
     };
     db.operationLogs.unshift(log);
     return log;
@@ -888,14 +1117,10 @@ function recordOperationLog(record, action, details = {}) {
 function latestRenewLogForTask(task, record) {
     const sourceId = String(task?.sourceRecordId || task?.source_record_id || record?.id || '');
     const username = String(task?.username || record?.username || '').trim().toLowerCase();
-    const owner = String(task?.sourceOwner || task?.source_owner || record?.owner || task?.recordSnapshot?.owner || '').trim();
     return [...operationLogsInScope()]
         .filter(log => String(log?.action || '') === 'renew')
-        .filter(log => {
-            if (sourceId && String(log?.sourceRecordId || '') === sourceId) return true;
-            return username && String(log?.username || '').trim().toLowerCase() === username &&
-                (!owner || !log?.owner || String(log.owner).trim() === owner);
-        })
+        .filter(log => (sourceId && String(log?.sourceRecordId || '') === sourceId) ||
+            (username && String(log?.username || '').trim().toLowerCase() === username))
         .sort((a, b) => String(b.operatedAt || '').localeCompare(String(a.operatedAt || '')))[0] || null;
 }
 
@@ -904,7 +1129,7 @@ function localizeBitResultText(value) {
     if (!text) return '-';
     const direct = BIT_RESULT_LABELS[text.toLowerCase()];
     if (direct) return direct;
-    return text.replace(/\b(deleted|recovered|disabled|enabled|window_quota_updated|username_updated|cancelled_by_user|resolved_by_newer_task|superseded_by_newer_task|window_quota_cancelled_by_delete)\b/gi,
+    return text.replace(/\b(deleted|recovered|disabled|enabled|window_quota_updated|cancelled_by_user|resolved_by_newer_task|superseded_by_newer_task|window_quota_cancelled_by_delete)\b/gi,
         code => BIT_RESULT_LABELS[code.toLowerCase()] || code);
 }
 
@@ -925,13 +1150,8 @@ function renderOperationLogs() {
     const list = document.getElementById('operationLogList');
     const input = document.getElementById('operationLogSearchInput');
     const count = document.getElementById('operationLogSearchCount');
-    const clearButton = document.getElementById('clearOperationLogsButton');
     const logs = [...operationLogsInScope()].sort((a, b) => String(b.operatedAt || '').localeCompare(String(a.operatedAt || '')));
     if (button) button.textContent = `📝 操作日志 (${logs.length})`;
-    if (clearButton) {
-        clearButton.disabled = logs.length === 0;
-        clearButton.textContent = logs.length ? `清空日志 (${logs.length})` : '清空日志';
-    }
     if (!list) return;
     const search = String(input?.value || '').trim().toLowerCase();
     const visible = search ? logs.filter(log => [
@@ -939,50 +1159,19 @@ function renderOperationLogs() {
         log.windows, log.amount, log.paymentAmount, formatOperationTime(log.operatedAt), log.expiryBefore, log.expiryAfter
     ].join(' ').toLowerCase().includes(search)) : logs;
     if (count) count.textContent = search ? `（搜索结果 ${visible.length}/${logs.length}）` : `（共 ${logs.length} 条）`;
-    const rows = visible.map(log => {
-        const encodedLogId = encodeURIComponent(String(log.id || '')).replace(/'/g, '%27');
-        const deleteButton = log.id
-            ? `<button class="operation-log-delete-btn" onclick="deleteOperationLog(decodeURIComponent('${encodedLogId}'))">删除</button>`
-            : '-';
-        return `<div class="operation-log-row">
-            <div><b>${escapeHtml(log.username || '-')}</b></div>
-            <div>${escapeHtml(log.wechat || '-')}</div>
-            <div>${escapeHtml(OPERATION_ACTION_LABELS[log.action] || log.action || '-')}</div>
-            <div>${escapeHtml(log.windows || '-')}</div>
-            <div>${(log.amount || log.paymentAmount) ? '¥' + escapeHtml(log.amount || log.paymentAmount) : '-'}</div>
-            <div>${escapeHtml(formatOperationTime(log.operatedAt))}</div>
-            <div>${escapeHtml(log.expiryBefore || '-')}</div>
-            <div>${escapeHtml(log.expiryAfter || '-')}</div>
-            <div>${escapeHtml(log.owner || '-')}</div>
-            <div>${deleteButton}</div>
-        </div>`;
-    }).join('');
-    list.innerHTML = `<div class="operation-log-row operation-log-header"><div>员工号</div><div>微信</div><div>操作</div><div>窗口</div><div>金额</div><div>操作时间</div><div>续费前到期</div><div>续费后到期</div><div>归属</div><div>操作</div></div>` +
+    const rows = visible.map(log => `<div class="operation-log-row">
+        <div><b>${escapeHtml(log.username || '-')}</b></div>
+        <div>${escapeHtml(log.wechat || '-')}</div>
+        <div>${escapeHtml(OPERATION_ACTION_LABELS[log.action] || log.action || '-')}</div>
+        <div>${escapeHtml(log.windows || '-')}</div>
+        <div>${(log.amount || log.paymentAmount) ? '¥' + escapeHtml(log.amount || log.paymentAmount) : '-'}</div>
+        <div>${escapeHtml(formatOperationTime(log.operatedAt))}</div>
+        <div>${escapeHtml(log.expiryBefore || '-')}</div>
+        <div>${escapeHtml(log.expiryAfter || '-')}</div>
+        <div>${escapeHtml(log.owner || '-')}</div>
+    </div>`).join('');
+    list.innerHTML = `<div class="operation-log-row operation-log-header"><div>员工号</div><div>微信</div><div>操作</div><div>窗口</div><div>金额</div><div>操作时间</div><div>续费前到期</div><div>续费后到期</div><div>归属</div></div>` +
         (rows || `<div style="text-align:center; padding:38px; color:#fff;">${search ? '没有找到匹配日志' : '暂无操作日志'}</div>`);
-}
-
-async function deleteOperationLog(logId) {
-    const logs = Array.isArray(db.operationLogs) ? db.operationLogs : [];
-    const index = logs.findIndex(log => String(log?.id || '') === String(logId || ''));
-    if (index < 0) return alert('找不到这条操作日志，请先刷新。');
-    const log = logs[index];
-    const action = OPERATION_ACTION_LABELS[log.action] || log.action || '操作';
-    if (!(await showActionConfirm(`确定删除「${log.username || '-'}」的“${action}”日志？\n\n只会删除这条日志，不会影响员工号或联动任务。`, { title:'删除日志', confirmText:'确认删除', danger:true }))) return;
-    logs.splice(index, 1);
-    renderOperationLogs();
-    saveToCloud();
-}
-
-async function clearOperationLogs() {
-    const logs = Array.isArray(db.operationLogs) ? db.operationLogs : [];
-    const logCount = logs.length;
-    if (!logCount) return alert('当前没有可清空的操作日志。');
-    if (!(await showActionConfirm(`确定清空全部 ${logCount} 条操作日志？\n\n不受当前搜索条件影响；只会删除操作日志，不会影响员工号、金额或联动任务。`, { title:'清空操作日志', confirmText:'确认清空', danger:true }))) return;
-    db.operationLogs = [];
-    const searchInput = document.getElementById('operationLogSearchInput');
-    if (searchInput) searchInput.value = '';
-    renderOperationLogs();
-    saveToCloud();
 }
 
 function openOperationLogModal() {
@@ -993,6 +1182,10 @@ function openOperationLogModal() {
 function connectorPrefixes(connector) {
     if (Array.isArray(connector?.prefixes)) return connector.prefixes.map(String).map(x => x.trim()).filter(Boolean);
     return String(connector?.accountPrefix || connector?.account_prefix || '').split(/[,，;；\s]+/).map(x => x.trim()).filter(Boolean);
+}
+
+function visibleConnectorPrefixes(connector) {
+    return connectorPrefixes(connector);
 }
 
 function connectorManualAccounts(connector) {
@@ -1016,7 +1209,6 @@ function pruneExpiredConnectors(nowMs = Date.now()) {
     const connectors = Array.isArray(db.bitConnectors) ? db.bitConnectors : [];
     const expiredIds = new Set(connectors.filter(connector => isExpiredConnectorRecord(connector, nowMs)).map(connector => String(connector.id || '')).filter(Boolean));
     if (!expiredIds.size) return 0;
-
     db.bitConnectors = connectors.filter(connector => !expiredIds.has(String(connector?.id || '')));
     db.bitInventory = (db.bitInventory || []).filter(item => !expiredIds.has(String(item?.connectorId || item?.connector_id || '')));
     const updatedAt = new Date(Number.isFinite(Number(nowMs)) ? Number(nowMs) : Date.now()).toISOString();
@@ -1038,8 +1230,7 @@ function pruneExpiredConnectors(nowMs = Date.now()) {
     return expiredIds.size;
 }
 
-// 旧 MainData 中只保留连接器配置；高频 last_seen 从独立心跳表覆盖到运行态副本。
-// 已释放或被接管的配置不参与运行；保留 24 小时后由同步流程清理。
+// MainData 保留 24 小时内的历史配置；独立心跳只覆盖仍启用的运行态副本。
 function rebuildActiveConnectors() {
     activeConnectors = (db.bitConnectors || []).filter(connector => connector?.enabled !== false).map(connector => {
         const heartbeat = connectorHeartbeatById.get(String(connector.id || ''));
@@ -1123,7 +1314,6 @@ function normalizeBitTask(job, extra = {}) {
         sourceRecordId: String(job.source_record_id ?? job.sourceRecordId ?? extra.sourceRecordId ?? ''),
         dedupeKey: String(job.dedupe_key ?? job.dedupeKey ?? extra.dedupeKey ?? ''),
         username: String(job.username ?? extra.username ?? ''),
-        newUsername: String(job.new_username ?? job.newUsername ?? extra.newUsername ?? ''),
         action: String(job.action ?? extra.action ?? ''),
         status: String(job.status ?? extra.status ?? 'pending'),
         targetConnectorId: job.target_connector_id ?? job.targetConnectorId ?? extra.targetConnectorId ?? null,
@@ -1260,6 +1450,7 @@ function collectRecordBitTasks() {
                 changed = rememberBitTask({
                     id: ref.id,
                     username: record.username,
+                    sourceOwner: String(record.owner || ''),
                     action: ref.action,
                     status: ref.status || 'pending',
                     last_error: ref.message || '',
@@ -1339,7 +1530,8 @@ function applyTaskToRecords(task) {
 function attachBitJob(record, job) {
     const task = normalizeBitTask(job, {
         sourceRecordId: record.id,
-        username: record.username
+        username: record.username,
+        sourceOwner: String(record.owner || '')
     });
     if (!task) throw new Error('没有生成有效的联动任务编号。');
     rememberBitTask(task);
@@ -1368,27 +1560,15 @@ function newBitDedupeKey(action, record, suffix = '') {
 
 async function enqueueBitJob(record, action, dedupeKey, options = {}) {
     if (!record || !String(record.username || '').trim()) throw new Error('记录缺少员工用户名。');
-    const newUsername = action === BIT_RENAME_ACTION ? String(options.newUsername || '').trim() : '';
-    if (action === BIT_RENAME_ACTION && !newUsername) throw new Error('修改用户名任务缺少新用户名。');
     const existing = (db.bitTasks || []).find(task => String(task.dedupeKey || '') === String(dedupeKey));
     if (existing) return attachBitJob(record, existing);
-    const activeRename = activeUsernameRenameTask(record);
-    if (action !== BIT_RENAME_ACTION && activeRename) {
-        throw new Error('该员工号正在修改用户名，请等待任务完成后再执行其他联动操作。');
-    }
-    if (action === BIT_RENAME_ACTION) {
-        const activeLifecycle = activeAccountLifecycleTask(record);
-        if (activeLifecycle) {
-            throw new Error(`该员工号仍有“${BIT_ACTION_LABELS[activeLifecycle.action] || activeLifecycle.action}”任务未完成，请等待完成后再修改用户名。`);
-        }
-    }
     const now = new Date().toISOString();
     const job = {
         id: newBitId(),
         dedupeKey,
         sourceRecordId: String(record.id),
+        sourceOwner: String(record.owner || ''),
         username: String(record.username).trim(),
-        newUsername,
         action,
         status: 'routing_required',
         targetConnectorId: null,
@@ -1466,7 +1646,6 @@ function applyManualTaskCancellation(state, taskId, nowText = new Date().toISOSt
     task.updatedAt = nowText;
 
     let restoredToTrash = false;
-    let restoredUsername = false;
     if (task.action === 'delete' && task.recordSnapshot && typeof task.recordSnapshot === 'object') {
         const snapshot = JSON.parse(JSON.stringify(task.recordSnapshot));
         const recordId = String(snapshot.id || task.sourceRecordId || '');
@@ -1482,22 +1661,6 @@ function applyManualTaskCancellation(state, taskId, nowText = new Date().toISOSt
             delete snapshot._bitPendingRecoverKey;
             state.trash.unshift(snapshot);
             restoredToTrash = true;
-        }
-    }
-
-    if (task.action === BIT_RENAME_ACTION) {
-        const sourceId = String(task.sourceRecordId || task.source_record_id || '');
-        const oldUsername = String(task.username || '').trim();
-        const newUsername = String(task.newUsername || task.new_username || '').trim().toLowerCase();
-        for (const listName of ['users', 'unused', 'trash']) {
-            for (const record of state[listName] || []) {
-                if (sourceId && String(record.id || '') !== sourceId) continue;
-                if (!sourceId && String(record.username || '').trim().toLowerCase() !== newUsername) continue;
-                if (newUsername && String(record.username || '').trim().toLowerCase() !== newUsername) continue;
-                if (!oldUsername) continue;
-                record.username = oldUsername;
-                restoredUsername = true;
-            }
         }
     }
 
@@ -1523,7 +1686,7 @@ function applyManualTaskCancellation(state, taskId, nowText = new Date().toISOSt
             }
         }
     }
-    return { ok: true, task, restoredToTrash, restoredUsername };
+    return { ok: true, task, restoredToTrash };
 }
 
 async function cancelBitTask(taskId) {
@@ -1620,9 +1783,7 @@ ${bitSetupMessage(error)}`);
                 renderTrash();
                 alert(result.restoredToTrash
                     ? '✅ 任务已取消，删除前的账号记录也已恢复到回收站。'
-                    : result.restoredUsername
-                        ? '✅ 修改用户名任务已取消，网页用户名已恢复为修改前的名称。'
-                        : '✅ 任务已取消，联动程序不会再执行这条任务。');
+                    : '✅ 任务已取消，联动程序不会再执行这条任务。');
                 return;
             }
             await new Promise(resolve => setTimeout(resolve, 80 * (attempt + 1)));
@@ -1632,28 +1793,6 @@ ${bitSetupMessage(error)}`);
         alert(`❌ 取消任务失败：\n${bitSetupMessage(error)}`);
     } finally {
         showLoading(false);
-    }
-}
-
-function clearBitTaskReferences(state, removedIds) {
-    for (const listName of ['users', 'unused', 'trash']) {
-        for (const record of state[listName] || []) {
-            if (removedIds.has(String(record.bitJobId || ''))) {
-                delete record.bitJobId;
-                delete record.bitSyncAction;
-                delete record.bitSyncStatus;
-                delete record.bitSyncMessage;
-                delete record.bitSyncUpdatedAt;
-            }
-            if (removedIds.has(String(record.windowJobId || ''))) {
-                delete record.windowJobId;
-                delete record.windowSyncAction;
-                delete record.windowSyncStatus;
-                delete record.windowSyncMessage;
-                delete record.windowSyncUpdatedAt;
-                delete record.windowTarget;
-            }
-        }
     }
 }
 
@@ -1675,104 +1814,6 @@ function bitBadgeForRecord(record) {
     return `<span class="bit-badge ${escapeHtml(status)}" title="${escapeHtml(message || '')}">${prefix}${escapeHtml(BIT_STATUS_LABELS[status] || status || '待同步')}</span>`;
 }
 
-async function clearBitTaskLogs() {
-    const localCount = (db.bitTasks || []).filter(task => BIT_LOG_STATUSES.has(String(task.status || ''))).length;
-    if (!localCount) return alert('当前没有可清除的历史任务日志。');
-    if (!(await showActionConfirm(`确定清除 ${localCount} 条已完成、已解决或已取消的任务日志？\n\n待执行、执行中、等待重试和需人工处理的任务会继续保留。`, { title:'清除任务日志', confirmText:'确认清除', danger:true }))) return;
-    if (_isSaving || _hasPendingSave) return alert('当前数据正在保存，请等顶部显示保存成功后再清空任务日志。');
-
-    showLoading(true, { blocking: false });
-
-    if (globalThis.__ownerSplitLoaded) {
-        try {
-            await syncFromCloud(true);
-            const removedIds = new Set((db.bitTasks || [])
-                .filter(task => BIT_LOG_STATUSES.has(String(task.status || '')))
-                .map(task => String(task.id)));
-            if (!removedIds.size) {
-                render(); renderTrash();
-                alert('历史任务日志已经是空的。');
-                return;
-            }
-            db.bitTasks = (db.bitTasks || []).filter(task => !removedIds.has(String(task.id)));
-            clearBitTaskReferences(db, removedIds);
-            baseSnapshot = JSON.parse(JSON.stringify(db));
-            render(); renderTrash();
-            saveToCloud(true);
-            alert(`✅ 已清除 ${removedIds.size} 条任务日志`);
-        } catch (error) {
-            alert(`清除任务日志失败：
-${bitSetupMessage(error)}`);
-        } finally {
-            showLoading(false);
-        }
-        return;
-    }
-
-    try {
-        const waitStartedAt = Date.now();
-        while (_isSyncing && Date.now() - waitStartedAt < 5000) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-        if (_isSyncing) throw new Error('当前同步尚未结束，请稍后重试。');
-        _isClearingBitLogs = true;
-
-        for (let attempt = 0; attempt < 8; attempt++) {
-            const { data, error } = await supabaseClient.from('MainData')
-                .select('content, updated_at').eq('id', ROW_ID).single();
-            if (error) throw error;
-            if (!data) throw new Error('云端没有返回MainData。');
-
-            let content = data.content;
-            if (typeof content === 'string') {
-                try { content = JSON.parse(content); } catch (parseError) { content = {}; }
-            }
-            const cloudState = normalizeDb(content);
-            const removedIds = new Set((cloudState.bitTasks || [])
-                .filter(task => BIT_LOG_STATUSES.has(String(task.status || '')))
-                .map(task => String(task.id)));
-
-            if (!removedIds.size) {
-                db = cloudState;
-                baseSnapshot = JSON.parse(JSON.stringify(db));
-                lastKnownUpdatedAt = data.updated_at;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(buildMainDataPayload()));
-                render();
-                renderTrash();
-                alert('历史任务日志已经是空的。');
-                return;
-            }
-
-            cloudState.bitTasks = (cloudState.bitTasks || []).filter(task => !removedIds.has(String(task.id)));
-            clearBitTaskReferences(cloudState, removedIds);
-            const nowText = new Date().toISOString();
-            const saveResult = await supabaseClient.from('MainData')
-                .update({ content: cloudState, updated_at: nowText })
-                .eq('id', ROW_ID)
-                .eq('updated_at', data.updated_at)
-                .select('updated_at');
-            if (saveResult.error) throw saveResult.error;
-            if (saveResult.data && saveResult.data.length > 0) {
-                db = cloudState;
-                baseSnapshot = JSON.parse(JSON.stringify(db));
-                lastKnownUpdatedAt = nowText;
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(buildMainDataPayload()));
-                document.getElementById('syncStatus').innerText = `✅ 已清除 ${removedIds.size} 条任务日志 ${getBeijingTimeString()}`;
-                render();
-                renderTrash();
-                return;
-            }
-            await new Promise(resolve => setTimeout(resolve, 80 * (attempt + 1)));
-        }
-        throw new Error('云端数据持续变化，暂时无法安全清除，请重试。');
-    } catch (error) {
-        alert(`清除任务日志失败：\n${bitSetupMessage(error)}`);
-    } finally {
-        _isClearingBitLogs = false;
-        showLoading(false);
-    }
-}
-
 function renderBitIntegration() {
     const button = document.getElementById('bitLinkButton');
     const summary = document.getElementById('bitLinkSummary');
@@ -1780,31 +1821,26 @@ function renderBitIntegration() {
     const jobList = document.getElementById('bitJobList');
     const jobSearchInput = document.getElementById('bitJobSearchInput');
     const jobSearchCount = document.getElementById('bitJobSearchCount');
-    const clearLogsButton = document.getElementById('clearBitTaskLogsButton');
     if (!button || !summary || !routeList || !jobList) return;
 
-    const tasks = [...(db.bitTasks || [])].sort((a, b) =>
+    const tasks = [...(db.bitTasks || []).filter(task => isTaskInOwnerScope(task))].sort((a, b) =>
         String(b.updatedAt || '').localeCompare(String(a.updatedAt || ''))
     );
     const jobSearchValue = String(jobSearchInput?.value || '').trim().toLowerCase();
     const taskViews = tasks.map(task => {
-        const record = findTaskRecordForDisplay(task);
+        const record = findTaskSourceRecord(task) || (task?.recordSnapshot && typeof task.recordSnapshot === 'object' ? task.recordSnapshot : null);
         const wechat = String(record?.wechat || task?.recordSnapshot?.wechat || '-');
         const status = String(task.status || '');
         const label = BIT_STATUS_LABELS[status] || status || '-';
         const rawTarget = task.targetWindowCount ?? task.target_window_count;
-        const newUsername = String(task.newUsername || task.new_username || '').trim();
         const actionLabel = String(task.action || '') === BIT_WINDOW_QUOTA_ACTION && Number.isSafeInteger(Number(rawTarget))
             ? `修改窗口数为${Number(rawTarget)}`
-            : String(task.action || '') === BIT_RENAME_ACTION && newUsername
-                ? `修改用户名为${newUsername}`
-                : (BIT_ACTION_LABELS[task.action] || task.action || '-');
-        const updatedValue = task.updatedAt || task.updated_at;
-        const updated = formatOperationTime(updatedValue);
+            : (BIT_ACTION_LABELS[task.action] || task.action || '-');
+        const updated = formatOperationTime(task.updatedAt || task.updated_at);
         const message = bitResultText(task);
-        const searchable = [task.username, newUsername, wechat, task.action, actionLabel, status, label, updated,
+        const searchable = [task.username, wechat, task.action, actionLabel, status, label, updated,
             task.attempts, message, task.resultCode, task.result_code, task.targetPrefix, record?.owner].join(' ').toLowerCase();
-        return { task, newUsername, wechat, status, label, actionLabel, updated, message, searchable };
+        return { task, wechat, status, label, actionLabel, updated, message, searchable };
     });
     const visibleTasks = jobSearchValue
         ? taskViews.filter(view => view.searchable.includes(jobSearchValue))
@@ -1816,12 +1852,7 @@ function renderBitIntegration() {
     }
     const pending = tasks.filter(task => BIT_PENDING_STATUSES.has(task.status)).length;
     const attention = tasks.filter(task => task.status === 'needs_attention').length;
-    const clearable = tasks.filter(task => BIT_LOG_STATUSES.has(String(task.status || ''))).length;
     const online = bitConnectorRoutes.filter(route => route.online).length;
-    if (clearLogsButton) {
-        clearLogsButton.disabled = clearable === 0;
-        clearLogsButton.textContent = clearable ? `清空任务日志 (${clearable})` : '清空任务日志';
-    }
 
     button.classList.remove('ok', 'warn', 'error');
     if (bitIntegrationAvailable === false) {
@@ -1854,16 +1885,13 @@ function renderBitIntegration() {
     }).join('') : '<div style="font-size:10px; color:#fff">暂无已绑定连接器</div>';
 
     const rows = visibleTasks.slice(0, 100).map(view => {
-        const { task, newUsername, wechat, status, label, actionLabel, updated, message } = view;
-        const usernameLabel = String(task.action || '') === BIT_RENAME_ACTION && newUsername
-            ? `${task.username || '-'} → ${newUsername}`
-            : (task.username || '-');
+        const { task, wechat, status, label, actionLabel, updated, message } = view;
         const encodedTaskId = encodeURIComponent(String(task.id || '')).replace(/'/g, '%27');
         const cancelAction = BIT_CANCELLABLE_STATUSES.has(status)
             ? `<button class="bit-cancel-btn" onclick="cancelBitTask(decodeURIComponent('${encodedTaskId}'))">取消任务</button>`
             : '-';
         return `<div class="bit-job-row">
-            <div title="${escapeHtml(usernameLabel)}"><b>${escapeHtml(usernameLabel)}</b></div>
+            <div title="${escapeHtml(task.username)}"><b>${escapeHtml(task.username || '-')}</b></div>
             <div title="${escapeHtml(wechat)}">${escapeHtml(wechat)}</div>
             <div>${escapeHtml(actionLabel)}</div>
             <div><span class="bit-badge ${escapeHtml(status)}">${escapeHtml(label)}</span></div>
@@ -1906,18 +1934,16 @@ async function refreshBitIntegration(silent = true) {
         }
         changed = _changedCollect || _changedRegistry || _changedSuperseded || _changedRoute;
         const now = Date.now();
-        bitConnectorRoutes = activeConnectors.filter(connector =>
-            connectorPrefixes(connector).length || connectorManualAccounts(connector).length
-        ).map(connector => {
+        bitConnectorRoutes = activeConnectors.map(connector => ({
+            connector,
+            prefixes: visibleConnectorPrefixes(connector)
+        })).filter(item => item.prefixes.length).map(({ connector, prefixes }) => {
             const lastSeen = connector.lastSeen || connector.last_seen || null;
             const seenAt = lastSeen ? new Date(lastSeen).getTime() : 0;
             return {
                 connector_id: connector.id,
                 display_name: connector.displayName || connector.display_name || '未命名连接器',
-                account_prefix: [
-                    connectorPrefixes(connector).join(','),
-                    connectorManualAccounts(connector).length ? `指定：${connectorManualAccounts(connector).join(',')}` : ''
-                ].filter(Boolean).join('；') || '未配置',
+                account_prefix: prefixes.join(','),
                 last_seen: lastSeen,
                 online: connector.enabled !== false && Number.isFinite(seenAt) && now - seenAt < BIT_CONNECTOR_OFFLINE_MS
             };
@@ -1957,14 +1983,12 @@ async function syncConnectors(silent = true) {
     try {
         const { data, error } = await supabaseClient.rpc('get_bit_connector_heartbeats');
         if (error) throw error;
-        trackTraffic('heartbeat', 'read', JSON.stringify(data || []).length || 0);
         const knownConnectorIds = new Set((db.bitConnectors || []).map(connector => String(connector?.id || '')).filter(Boolean));
         connectorHeartbeatById = new Map((data || []).filter(row => knownConnectorIds.has(String(row.connector_id || ''))).map(row => [String(row.connector_id || ''), row]));
         rebuildActiveConnectors();
         await refreshBitIntegration(true);
     } catch (err) {
         console.error('[sync] 拉取连接器心跳失败:', err);
-        // 新通道临时不可用时继续使用 MainData 中最后一次保存的状态，不清空现有连接器。
         rebuildActiveConnectors();
         renderBitIntegration();
         if (!silent) alert(`连接器心跳同步失败：\n${bitErrorText(err)}`);
@@ -1974,7 +1998,7 @@ async function syncConnectors(silent = true) {
 }
 
 async function processExpiredUsers() {
-    const expired = db.users.filter(user => getStatus(user.expiry) === 'expired' && !activeWindowPaymentLock(user));
+    const expired = db.users.filter(user => isOwnerInScope(user) && getStatus(user.expiry) === 'expired' && !activeWindowPaymentLock(user));
     if (!expired.length) return 0;
     let moved = 0;
     for (const user of expired) {
@@ -2043,8 +2067,8 @@ function hasActiveInlineEdit() {
 }
 
 async function syncFromCloud(silent = false) {
-    if (_isSyncing || _isClearingBitLogs) {
-        if (!silent && _isSyncing) document.getElementById('syncStatus').innerText = '☁️ 正在完成当前同步...';
+    if (_isSyncing) {
+        if (!silent) document.getElementById('syncStatus').innerText = '☁️ 正在完成当前同步...';
         return;
     }
     // 如果正在保存或者本地刚做了修改还在排队，一律跳过拉取，防止云端旧数据覆盖正在处理的表单！
@@ -2066,39 +2090,32 @@ async function syncFromCloud(silent = false) {
     _isSyncing = true;
     if (!silent) showLoading(true, { blocking: false });
     try {
-        // 先做轻量心跳：绝大多数轮询只返回 updated_at，不下载完整 content。
         const { data: versionData, error: versionError } = await supabaseClient.from('MainData')
             .select('updated_at')
             .eq('id', ROW_ID)
             .single();
         if (versionError) throw versionError;
-        trackTraffic('mainData', 'version_read', 200);
 
-        // 心跳等待期间如果出现了本地修改，就不要继续拉取云端数据。
         if (_isSaving || _hasPendingSave) {
             console.log('[sync] 心跳请求期间发生本地修改，跳过此次同步');
             return;
         }
 
         const cloudUpdatedAt = versionData?.updated_at || 'FRESH';
-        // 时间戳相同表示内容没有变化；使用“不相等”判断也能兼容云端数据回滚。
         if (lastKnownUpdatedAt && cloudUpdatedAt === lastKnownUpdatedAt) {
             document.getElementById('syncStatus').innerText = `✅ 已是最新 ${getBeijingTimeString()}`;
-            // 保留原有的本地状态刷新和到期处理，但不产生 content 下载。
             await refreshBitIntegration(true);
             await processExpiredUsers();
             render();
             return;
         }
 
-        // 只有首次同步或版本变化时，才下载完整 JSON。
         const { data, error } = await supabaseClient.from('MainData')
             .select('content, updated_at')
             .eq('id', ROW_ID)
             .single();
         if (error) throw error;
-        trackTraffic('mainData', 'content_read', JSON.stringify(data && data.content ? data.content : '').length || 0);
-
+        
         // 【防御性拦截】等待网络请求期间，用户又做了本地修改？
         if (_isSaving || _hasPendingSave) {
             console.log('[sync] 请求期间发生本地修改，抛弃本次返回版本');
@@ -2135,6 +2152,7 @@ async function syncFromCloud(silent = false) {
     } finally {
         _isSyncing = false;
         if (!silent) showLoading(false);
+        autoResumePendingPaidOrders();
     }
 }
 
@@ -2198,7 +2216,6 @@ async function _doSaveToCloud() {
     const isSilent = _isSilentSave;
     // 必须在请求发出前制作完全独立的快照。之后的连续编辑不能改变本次请求和基线。
     const payload = snapshotMainData();
-    trackTraffic('mainData', 'write', JSON.stringify(payload).length || 0);
     _hasPendingSave = false; // 进入实际保存过程
     _isSilentSave = true;
     _isSaving = true;
@@ -2220,12 +2237,9 @@ async function _doSaveToCloud() {
     const currentNow = new Date().toISOString();
     let conflictDetected = false;
     try {
-        // 写入前预检版本：如果云端版本已经变化，直接进入冲突合并，
-        // 避免先把 224KB 整包 PATCH 过去再失败，省下一次完整上传。
         if (lastKnownUpdatedAt !== 'FRESH') {
             const { data: _verData, error: _verError } = await supabaseClient.from('MainData')
                 .select('updated_at').eq('id', ROW_ID).single();
-            trackTraffic('mainData', 'version_read', 200);
             if (!_verError && _verData && _verData.updated_at !== lastKnownUpdatedAt) {
                 console.log('[save] 预检发现云端版本已变化，跳过整包写入，直接进入冲突合并');
                 conflictDetected = true;
@@ -2309,7 +2323,6 @@ async function autoResolveConflict(showMask = false) {
     try {
         const { data, error } = await supabaseClient.from('MainData').select('content, updated_at').eq('id', ROW_ID).single();
         if (error) throw error;
-        trackTraffic('mainData', 'content_read', JSON.stringify(data && data.content ? data.content : '').length || 0);
         if (data && data.content) {
             latestUpdatedAt = data.updated_at;
             let parsed = data.content;
@@ -2690,9 +2703,84 @@ function observeAdaptivePageWidth() {
 
 if (typeof requestAnimationFrame === 'function') requestAnimationFrame(observeAdaptivePageWidth);
 
+function bindEditableCell(td, userId, field) {
+    let copyTimer = null;
+    let touchStart = null;
+    let lastTap = null;
+    let ignoreClickUntil = 0;
+
+    const copyCellText = () => {
+        if (!td.querySelector('.edit-input')) copyToClipboard(td.innerText.replace('★', ''));
+    };
+    const scheduleCopy = delay => {
+        clearTimeout(copyTimer);
+        copyTimer = setTimeout(() => {
+            lastTap = null;
+            copyCellText();
+        }, delay);
+    };
+    const beginEdit = event => {
+        if (td.querySelector('.edit-input')) return;
+        if (event?.cancelable) event.preventDefault();
+        clearTimeout(copyTimer);
+        lastTap = null;
+        makeEditable(td, userId, field);
+    };
+
+    td.onclick = () => {
+        if (td.querySelector('.edit-input') || Date.now() < ignoreClickUntil) return;
+        scheduleCopy(320);
+    };
+    td.ondblclick = beginEdit;
+    td.addEventListener('touchstart', event => {
+        if (event.touches.length !== 1) {
+            touchStart = null;
+            lastTap = null;
+            return;
+        }
+        const touch = event.touches[0];
+        touchStart = { x: touch.clientX, y: touch.clientY, moved: false };
+    }, { passive: true });
+    td.addEventListener('touchmove', event => {
+        if (!touchStart || event.touches.length !== 1) return;
+        const touch = event.touches[0];
+        if (Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y) > 12) {
+            touchStart.moved = true;
+        }
+    }, { passive: true });
+    td.addEventListener('touchend', event => {
+        const touch = event.changedTouches[0];
+        if (!touch || !touchStart || touchStart.moved) {
+            touchStart = null;
+            lastTap = null;
+            clearTimeout(copyTimer);
+            return;
+        }
+
+        const now = Date.now();
+        const isDoubleTap = lastTap && now - lastTap.time <= 500 &&
+            Math.hypot(touch.clientX - lastTap.x, touch.clientY - lastTap.y) <= 28;
+        touchStart = null;
+        ignoreClickUntil = now + 700;
+        if (event.cancelable) event.preventDefault();
+
+        if (isDoubleTap) {
+            beginEdit(event);
+        } else {
+            lastTap = { time: now, x: touch.clientX, y: touch.clientY };
+            scheduleCopy(520);
+        }
+    }, { passive: false });
+    td.addEventListener('touchcancel', () => {
+        touchStart = null;
+        lastTap = null;
+        clearTimeout(copyTimer);
+    }, { passive: true });
+}
+
 function render(forceSort = false) {
     const container = document.getElementById('userTableBody');
-    let displayData = db.users; // 显示所有用户
+    let displayData = db.users.filter(isOwnerInScope);
     const priorityUserId = newlyActivatedId;
     
     const filters = {};
@@ -2712,7 +2800,7 @@ function render(forceSort = false) {
     document.getElementById('statWindows').innerText = `/${displayData.reduce((s, u) => s + toNumber(u.windows), 0)}`;
     document.getElementById('statUsers').innerText = `/${displayData.length}`;
     document.getElementById('statAmount').innerText = `/${displayData.reduce((s, u) => s + toNumber(u.amount), 0).toFixed(0)}`;
-    document.getElementById('trashCount').innerText = db.trash.length;
+    document.getElementById('trashCount').innerText = db.trash.filter(isOwnerInScope).length;
 
     renderStatsBar();
     renderUnusedGrid();
@@ -2732,6 +2820,7 @@ function render(forceSort = false) {
         const activeTime = escapeHtml(displayVal(u.activeTime));
         const expiry = escapeHtml(displayVal(u.expiry));
         const amount = escapeHtml(displayVal(withDefault(u.amount, DEFAULT_AMOUNT)));
+        const bitBadge = bitBadgeForRecord(u);
         
         tr.innerHTML = `
             <td>
@@ -2739,18 +2828,17 @@ function render(forceSort = false) {
                 <input type="checkbox" class="user-cb" data-id="${u.id}" onclick="updateBatchBar()">
             </td>
             <td><button class="btn btn-ghost btn-sm" onclick="copyUserSummary('${u.id}')">复制</button></td>
-            <td class="editable" data-f="owner">${owner}</td>
-            <td>${windows}</td>
-            <td class="detail-cell copy-on-click" title="${username}｜单击复制用户名"><b>${username}</b></td>
-            <td class="detail-cell copy-on-click" title="单击复制密码">${password}</td>
-            <td class="editable detail-cell" data-f="wechat">${wechat}</td>
-            <td class="editable detail-cell" data-f="xianyu">${xianyu}</td>
-            <td class="editable detail-cell" data-f="activeTime">${activeTime}</td>
-            <td class="editable detail-cell" data-f="expiry">${expiry}</td>
-            <td class="editable amount-cell" data-f="amount" style="color:var(--accent)">${amount}</td>
-            <td class="status-cell"><span style="color:var(--${st}); font-size:11px; font-weight:bold">${st==='expiring'?'⚠️即将到期':st==='active'?'✅有效':'❌过期'}</span></td>
+            <td class="copy-on-click owner-cell">${owner}</td>
+            <td class="window-cell">${windows}</td>
+            <td class="readonly-username copy-on-click user-cell" title="${username}｜单击复制用户名"><b>${username}</b></td>
+            <td class="copy-on-click" title="单击复制密码">${password}</td>
+            <td class="editable wechat-cell" data-f="wechat">${wechat}</td>
+            <td class="copy-on-click">${xianyu}</td>
+            <td class="copy-on-click">${activeTime}</td>
+            <td class="copy-on-click">${expiry}</td>
+            <td class="copy-on-click amount-cell" style="color:var(--accent)">${amount}</td>
+            <td class="status-cell"><span style="color:var(--${st}); font-size:10px; font-weight:bold">${st==='expiring'?'⚠️即将到期':st==='active'?'✅有效':'❌过期'}</span></td>
             <td class="window-change-cell"><button class="btn btn-ghost btn-sm" onclick="openWindowChangeModal('${u.id}')">修改</button></td>
-            <td class="rename-cell"><button class="btn btn-ghost btn-sm" onclick="openRenameUserModal('${u.id}')">改名称</button></td>
             <td class="row-actions">
                 <div class="row-actions-inner">
                     <button class="btn btn-success btn-sm" onclick="quickRenew('${u.id}')">续费</button>
@@ -2764,57 +2852,7 @@ function render(forceSort = false) {
             td.onclick = () => copyToClipboard(td.innerText);
         });
 
-        tr.querySelectorAll('.editable').forEach(td => {
-            let timer = null;
-            let touchStart = null;
-            let lastTap = null;
-            const beginEdit = event => {
-                if (td.querySelector('.edit-input')) return;
-                if (event) event.preventDefault();
-                clearTimeout(timer);
-                makeEditable(td, u.id, td.dataset.f);
-            };
-            td.onclick = () => {
-                if (td.querySelector('.edit-input')) return;
-                clearTimeout(timer);
-                timer = setTimeout(() => copyToClipboard(td.innerText), 320);
-            };
-            td.ondblclick = beginEdit;
-            td.addEventListener('touchstart', event => {
-                if (event.touches.length !== 1) {
-                    touchStart = null;
-                    lastTap = null;
-                    return;
-                }
-                const touch = event.touches[0];
-                touchStart = { x: touch.clientX, y: touch.clientY, moved: false };
-            }, { passive: true });
-            td.addEventListener('touchmove', event => {
-                if (!touchStart || event.touches.length !== 1) return;
-                const touch = event.touches[0];
-                if (Math.hypot(touch.clientX - touchStart.x, touch.clientY - touchStart.y) > 10) {
-                    touchStart.moved = true;
-                }
-            }, { passive: true });
-            td.addEventListener('touchend', event => {
-                const touch = event.changedTouches[0];
-                if (!touch || !touchStart || touchStart.moved) {
-                    touchStart = null;
-                    lastTap = null;
-                    return;
-                }
-                const now = Date.now();
-                const isDoubleTap = lastTap && now - lastTap.time <= 400 &&
-                    Math.hypot(touch.clientX - lastTap.x, touch.clientY - lastTap.y) <= 24;
-                touchStart = null;
-                if (isDoubleTap) {
-                    lastTap = null;
-                    beginEdit(event);
-                } else {
-                    lastTap = { time: now, x: touch.clientX, y: touch.clientY };
-                }
-            }, { passive: false });
-        });
+        tr.querySelectorAll('.editable').forEach(td => bindEditableCell(td, u.id, td.dataset.f));
         container.appendChild(tr);
     });
     observeAdaptivePageWidth();
@@ -2851,7 +2889,7 @@ function renderTrash() {
     const list = document.getElementById('trashList');
     const searchVal = (document.getElementById('trashSearchInput')?.value || '').trim().toLowerCase();
 
-    let filtered = db.trash;
+    let filtered = db.trash.filter(isOwnerInScope);
     if (searchVal) filtered = filtered.filter(u => matchesTrashGlobalSearch(u, searchVal));
     // 按到期日升序排列，'-' 视为最早。
     filtered = [...filtered].sort((a, b) => {
@@ -2898,10 +2936,10 @@ function toggleStar(id) {
 
 async function activate(id) {
     const u = db.unused.find(x => x.id === id);
-    if(!u) return;
-    if (!(await showActionConfirm(`确定激活“${u.username}”？\n\n默认窗口数${DEFAULT_WINDOWS}\n本次激活无需支付。`, { title:'激活确认', confirmText:'确认激活' }))) return;
+    if(!u) return false;
+    if (!(await showActionConfirm(`确定激活“${u.username}”？\n\n默认窗口数${DEFAULT_WINDOWS}\n需支付：¥${Number(DEFAULT_AMOUNT).toFixed(2)}`, { title:'激活确认', confirmText:'确认并支付' }))) return false;
     const operationClickedAt = new Date().toISOString();
-    if (!(await ensureCloudInitializedForAction())) return;
+    if (!(await ensureCloudInitializedForAction())) return false;
 
     // ── 激活前先拉云端最新数据，防止两人同时激活同一个名额 ──
     showLoading(true);
@@ -2911,7 +2949,7 @@ async function activate(id) {
             showLoading(false);
             alert('⚠️ 手慢了！\n\n您要激活的名额【' + u.username + '】已被其他同事抢先激活！\n\n系统已刷新最新数据。');
             render();
-            return;
+            return false;
         }
     } else {
         try {
@@ -2931,7 +2969,7 @@ async function activate(id) {
                     localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
                     document.getElementById('syncStatus').innerText = `✅ 云端同步 ${getBeijingTimeString()}`;
                     render();
-                    return;
+                    return false;
                 }
                 if (!_hasPendingSave && !_isSaving) {
                     lastKnownUpdatedAt = data.updated_at || 'FRESH';
@@ -2941,17 +2979,58 @@ async function activate(id) {
                 }
             }
         } catch(e) {
-            console.warn('[activate] 激活前验证失败，继续本地激活', e);
+            console.warn('[activate] 激活前验证失败', e);
+            showLoading(false);
+            alert('❌ 无法确认待激活名额的云端状态，请检查网络后重试。');
+            return false;
         }
     }
     showLoading(false);
 
     // ── 验证通过，执行激活 ──
-    const slot = db.unused.find(x => x.id === id);
+    let slot = db.unused.find(x => x.id === id);
     if (!slot) {
         alert('⚠️ 名额数据异常，请刷新后重试！');
         render();
-        return;
+        return false;
+    }
+
+    const payment = await requestPaidOperation('activate', [id], `小强 · ${slot.username} 激活`);
+    if (!payment) return false;
+    if (paymentAlreadyApplied(payment, id, 'activate')) {
+        await completePaidOperation(payment, { recordIds:[String(id)], action:'activate', duplicatePrevented:true });
+        alert('该付款订单已经完成激活，无需重复处理。');
+        return true;
+    }
+
+    // 付款完成后再次读取云端，避免扫码期间名额被其他页面抢先使用。
+    showLoading(true);
+    if (globalThis.__ownerSplitLoaded) {
+        await syncFromCloud(true);
+    } else {
+        try {
+            const { data, error } = await supabaseClient.from('MainData').select('content, updated_at').eq('id', ROW_ID).single();
+            if (error || !data || !data.content) throw (error || new Error('云端没有返回名额数据'));
+            let parsed = data.content;
+            if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+            if (!_hasPendingSave && !_isSaving) {
+                lastKnownUpdatedAt = data.updated_at || 'FRESH';
+            localStorage.setItem(STORAGE_KEY + '_version', lastKnownUpdatedAt);
+                db = normalizeDb(parsed);
+                baseSnapshot = JSON.parse(JSON.stringify(db));
+            }
+        } catch (error) {
+            showLoading(false);
+            alert('✅ 已确认付款，但暂时无法再次核验云端名额。请不要重复付款，稍后用同一页面重试。订单号：' + payment.orderNo);
+            return false;
+        }
+    }
+    showLoading(false);
+    slot = db.unused.find(x => x.id === id);
+    if (!slot) {
+        alert('✅ 已确认付款，但该名额在扫码期间已发生变化。请不要重复付款，联系管理员并提供订单号：' + payment.orderNo);
+        render();
+        return false;
     }
 
     const d = new Date(Date.now() + 8 * 3600000);
@@ -2962,11 +3041,13 @@ async function activate(id) {
     const eday = String(d.getUTCDate()).padStart(2, '0');
 
     newlyActivatedId = id;
-    const activatedUser = { id: id, username: slot.username, password: slot.password, owner: '-', wechat: '-', xianyu: '-', amount: DEFAULT_AMOUNT, windows: DEFAULT_WINDOWS, activeTime, expiry: `${ey}-${em}-${eday}`, isStarred: false };
+    const activatedUser = { id: id, username: slot.username, password: slot.password, owner: DEFAULT_OWNER, wechat: '-', xianyu: '-', amount: DEFAULT_AMOUNT, windows: DEFAULT_WINDOWS, activeTime, expiry: `${ey}-${em}-${eday}`, isStarred: false };
     db.users.push(activatedUser);
     db.unused = db.unused.filter(x => x.id !== id);
-    recordOperationLog(activatedUser, 'activate', { operatedAt: operationClickedAt, expiryAfter: activatedUser.expiry });
+    recordOperationLog(activatedUser, 'activate', paidLogDetails(payment, { operatedAt: operationClickedAt, expiryAfter: activatedUser.expiry }));
     saveToCloud(); render();
+    await completePaidOperation(payment, { recordIds:[String(id)], action:'activate', expiryAfter:activatedUser.expiry });
+    return true;
 }
 
 let renewalConfirmResolver = null;
@@ -3025,24 +3106,50 @@ function resolveActionConfirm(confirmed) {
 }
 
 async function quickRenew(id) {
-    const operationClickedAt = new Date().toISOString();
-    if (!(await ensureCloudInitializedForAction())) return;
-    const u = db.users.find(x => x.id === id);
-    if (!u) return;
-    if (blockForWindowPayment(u, '续费')) return false;
+    if (!(await ensureCloudInitializedForAction())) return false;
+    let u = db.users.find(x => x.id === id && isOwnerInScope(x));
+    if (!u) return false;
+    if (activeWindowPaymentLock(u)) return alert('该员工号已有窗口付款订单进行中，完成或超时前不能续费。');
+    let renewalPrice = validRenewalPriceOrAlert(u);
+    if (renewalPrice === null) return false;
     const renewalPreviewExpiry = getRenewedExpiry(u);
-    if (!(await showRenewalConfirm(u, renewalPreviewExpiry))) return;
+    if (!(await showRenewalConfirm(u, renewalPreviewExpiry, renewalPrice))) return false;
+    const payment = await requestPaidOperation('renew', [id], `小强 · ${u.username} · ${u.windows}窗口续费`);
+    if (!payment) return false;
+    if (paymentAlreadyApplied(payment, id, 'renew')) {
+        await completePaidOperation(payment, { recordIds:[String(id)], action:'renew', duplicatePrevented:true });
+        alert('该付款订单已经完成续费，无需重复处理。');
+        return true;
+    }
+    if (!(await ensureCloudInitializedForAction())) {
+        alert('✅ 已确认付款，但暂时无法同步云端数据。请不要重复付款，稍后用同一页面重试。');
+        return false;
+    }
+    u = db.users.find(x => x.id === id && isOwnerInScope(x));
+    if (!u) {
+        alert('✅ 已确认付款，但未找到该员工号。请不要重复付款，联系管理员并提供订单号：' + payment.orderNo);
+        return false;
+    }
+    const liveRenewalCents = recordMonthlyAmountCents(u);
+    renewalPrice = liveRenewalCents === null ? null : liveRenewalCents / 100;
+    if (renewalPrice === null || Math.round(Number(payment.totalAmount) * 100) !== liveRenewalCents) {
+        alert('✅ 已确认付款，但扫码期间月费发生变化，系统未执行续费。请联系管理员并提供订单号：' + payment.orderNo);
+        return false;
+    }
+    const operationClickedAt = new Date().toISOString();
     const expiryBefore = String(u.expiry || '');
     u.expiry = getRenewedExpiry(u);
-    recordOperationLog(u, 'renew', { operatedAt: operationClickedAt, expiryBefore, expiryAfter: u.expiry });
+    recordOperationLog(u, 'renew', paidLogDetails(payment, { operatedAt: operationClickedAt, expiryBefore, expiryAfter: u.expiry }));
     saveToCloud(); render();
+    await completePaidOperation(payment, { recordIds:[String(id)], action:'renew', expiryAfter:u.expiry });
+    return true;
 }
 
 async function moveUserToTrash(id, opts = {}) {
     const idx = db.users.findIndex(u => String(u.id) === String(id));
     if(idx > -1) {
         const user = db.users[idx];
-        if (blockForWindowPayment(user, '移入回收站')) return false;
+        if (activeWindowPaymentLock(user)) return alert('该员工号已有窗口付款订单进行中，完成或超时前不能移入回收站。');
         if (!opts.skipConfirm && !(await showActionConfirm(`确定将“${user.username}”移入回收站？\n\n确认后将停用对应 BitBrowser 员工号。`, { title:'移入回收站确认', confirmText:'确认移入', danger:true }))) return false;
         showLoading(true, { blocking: false });
         try {
@@ -3069,11 +3176,7 @@ async function rollbackUser(id, opts = {}) {
     const idx = db.users.findIndex(u => u.id === id);
     const needConfirm = !opts.skipConfirm;
     if (idx > -1 && activeWindowPaymentLock(db.users[idx])) {
-        if (!opts.noRender) blockForWindowPayment(db.users[idx], '回退名额');
-        return false;
-    }
-    if (idx > -1 && activeUsernameRenameTask(db.users[idx])) {
-        if (!opts.noRender) alert('该员工号正在修改用户名，请等待任务完成后再回退。');
+        if (!opts.noRender) alert('该员工号已有窗口付款订单进行中，完成或超时前不能回退名额。');
         return false;
     }
     if(idx > -1 && (needConfirm ? await showActionConfirm("回退到名额列表？", { title:'回退确认', confirmText:'确认回退' }) : true)) {
@@ -3081,9 +3184,7 @@ async function rollbackUser(id, opts = {}) {
         db.unused.push({ id: u.id, username: u.username, password: u.password || DEFAULT_PWD });
         if (!opts.noSave) saveToCloud();
         if (!opts.noRender) render();
-        return true;
     }
-    return false;
 }
 
 async function rollbackTrashUser(id) {
@@ -3121,12 +3222,37 @@ function getRenewedExpiry(record) {
 }
 
 async function restore(id) {
-    const operationClickedAt = new Date().toISOString();
-    if (!(await ensureCloudInitializedForAction())) return;
-    const idx = db.trash.findIndex(u => u.id === id);
+    if (!(await ensureCloudInitializedForAction())) return false;
+    let idx = db.trash.findIndex(u => u.id === id && isOwnerInScope(u));
     if(idx > -1) {
-        const restored = db.trash[idx];
-        if (!(await showActionConfirm(`确定为“${restored.username}”续费30天并恢复 BitBrowser 员工号？\n\n当前到期：${restored.expiry || '-'}`, { title:'续费恢复确认', confirmText:'确认续费' }))) return;
+        let restored = db.trash[idx];
+        let renewalPrice = validRenewalPriceOrAlert(restored);
+        if (renewalPrice === null) return false;
+        if (!(await showActionConfirm(`确定为“${restored.username}”续费30天并恢复 BitBrowser 员工号？\n\n窗口：${restored.windows}\n需支付：¥${renewalPrice.toFixed(2)}`, { title:'续费恢复确认', confirmText:'确认并支付' }))) return false;
+        const payment = await requestPaidOperation('restore', [id], `小强 · ${restored.username} 续费恢复`);
+        if (!payment) return false;
+        if (paymentAlreadyApplied(payment, id, 'renew')) {
+            await completePaidOperation(payment, { recordIds:[String(id)], action:'restore', duplicatePrevented:true });
+            alert('该付款订单已经完成续费，无需重复处理。');
+            return true;
+        }
+        if (!(await ensureCloudInitializedForAction())) {
+            alert('✅ 已确认付款，但暂时无法同步云端数据。请不要重复付款，稍后用同一页面重试。');
+            return false;
+        }
+        idx = db.trash.findIndex(u => u.id === id && isOwnerInScope(u));
+        if (idx < 0) {
+            alert('✅ 已确认付款，但该员工号当前不在回收站。请不要重复付款，联系管理员并提供订单号：' + payment.orderNo);
+            return false;
+        }
+        restored = db.trash[idx];
+        const liveRenewalCents = recordMonthlyAmountCents(restored);
+        renewalPrice = liveRenewalCents === null ? null : liveRenewalCents / 100;
+        if (renewalPrice === null || Math.round(Number(payment.totalAmount) * 100) !== liveRenewalCents) {
+            alert('✅ 已确认付款，但扫码期间月费发生变化，系统未执行续费恢复。请联系管理员并提供订单号：' + payment.orderNo);
+            return false;
+        }
+        const operationClickedAt = new Date().toISOString();
         const expiryBefore = String(restored.expiry || '');
         const newExpiry = getRenewedExpiry(restored);
         showLoading(true, { blocking: false });
@@ -3140,214 +3266,28 @@ async function restore(id) {
             delete restored.operated;
             newlyActivatedId = restored.id;
             db.users.push(restored);
-            recordOperationLog(restored, 'renew', { operatedAt: operationClickedAt, expiryBefore, expiryAfter: newExpiry });
+            recordOperationLog(restored, 'renew', paidLogDetails(payment, { operatedAt: operationClickedAt, expiryBefore, expiryAfter: newExpiry }));
             saveToCloud();
             renderTrash();
             render();
+            await completePaidOperation(payment, { recordIds:[String(id)], action:'restore', expiryAfter:newExpiry });
+            return true;
         } catch (error) {
             delete restored._bitPendingRecoverKey;
-            alert(`❌ ${restored.username} 续费失败：\n${bitSetupMessage(error)}\n\n为避免前端已恢复但 BitBrowser 仍停用，本次操作已取消。`);
+            alert(`✅ 付款已确认，但 ${restored.username} 续费失败：\n${bitSetupMessage(error)}\n\n请不要重复付款，稍后重试或联系管理员。订单号：${payment.orderNo}`);
+            return false;
         } finally {
             showLoading(false);
         }
     }
+    return false;
 }
 
 // ─────────────────── 其他逻辑 ───────────────────
 
-function activeWindowChangeTask(record) {
-    if (!record) return null;
-    const sourceId = String(record.id || '');
-    return (db.bitTasks || []).find(task =>
-        String(task.action || '') === BIT_WINDOW_QUOTA_ACTION &&
-        (String(task.id || '') === String(record.windowJobId || '') || String(task.sourceRecordId || task.source_record_id || '') === sourceId) &&
-        ['routing_required', 'pending', 'processing', 'retry_wait', 'needs_attention'].includes(String(task.status || ''))
-    ) || null;
-}
-
-function openWindowChangeModal(id) {
-    const record = db.users.find(item => String(item.id) === String(id));
-    if (!record) return alert('找不到该用户，请刷新后重试。');
-    if (blockForWindowPayment(record, '主管理页面修改窗口')) return;
-    const baseCents = windowChangeBaseCentsForOwner(record.owner);
-    if (baseCents === null && !isUnassignedOwner(record.owner)) return alert('该用户归属没有配置窗口价格。请先把归属设置为“知音科技”“雪莲”“小强”或“安然宝贝”。');
-    pendingWindowChangeUserId = String(id);
-    document.getElementById('windowChangeUser').textContent = `${record.username}：当前 ${record.windows || 0} 窗口，月费 ¥${formatMoneyCents(recordMonthlyAmountCents(record, true) ?? 0)}；微信：${displayVal(record.wechat)}\n归属：${record.owner}`;
-    document.getElementById('windowChangeInput').value = '';
-    document.getElementById('windowChangePreview').textContent = '';
-    document.getElementById('windowChangeModal').classList.add('open');
-    setTimeout(() => document.getElementById('windowChangeInput').focus(), 0);
-}
-
-function closeWindowChangeModal() {
-    document.getElementById('windowChangeModal').classList.remove('open');
-    pendingWindowChangeUserId = null;
-}
-
-function updateWindowChangePreview() {
-    const record = db.users.find(item => String(item.id) === String(pendingWindowChangeUserId));
-    const preview = document.getElementById('windowChangePreview');
-    const currentWindows = Number(record?.windows);
-    const change = parseWindowChangeInput(document.getElementById('windowChangeInput').value, currentWindows);
-    if (!record || !change) {
-        preview.textContent = '请输入最终窗口数（如 150、50），或输入相对变化（如 +50、-50）。';
-        return;
-    }
-    const { targetWindows, delta } = change;
-    if (delta === 0) {
-        preview.textContent = `当前已经是 ${currentWindows} 窗口，无需修改。`;
-        return;
-    }
-    const baseCents = windowChangeBaseCentsForOwner(record.owner);
-    const currentAmountCents = recordMonthlyAmountCents(record, true);
-    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || targetWindows < 0 || currentAmountCents === null) {
-        preview.textContent = '当前窗口数、金额或修改后的窗口数无效。';
-        return;
-    }
-    if (baseCents === null && !isUnassignedOwner(record.owner)) {
-        preview.textContent = '该用户归属没有配置窗口价格。';
-        return;
-    }
-    const newAmountCents = windowAmountCentsAfterChange(record, targetWindows, delta);
-    if (newAmountCents === null) {
-        preview.textContent = isUnassignedOwner(record.owner) && currentWindows <= 0
-            ? '无归属用户按现有金额比例计算时，当前窗口数必须大于 0。'
-            : '无法根据当前窗口数和金额计算修改后的月费。';
-        return;
-    }
-    if (delta > 0) {
-        const remainingDays = remainingWindowServiceDays(record.expiry);
-        if (remainingDays === null) {
-            preview.textContent = '到期日期无效，无法计算还需支付金额。';
-            return;
-        }
-        const amountDueCents = proratedWindowIncreaseCents(currentAmountCents, newAmountCents, remainingDays);
-        if (amountDueCents === null) {
-            preview.textContent = '无法根据月费差额和剩余天数计算还需支付金额。';
-            return;
-        }
-        preview.textContent = `${currentWindows} → ${targetWindows} 窗口；剩余 ${remainingDays} 天，还需支付 ¥${formatMoneyCents(amountDueCents)}（主管理页不发起付款）；月费 ¥${formatMoneyCents(currentAmountCents)} → ¥${formatMoneyCents(newAmountCents)}`;
-        return;
-    }
-    preview.textContent = `${currentWindows} → ${targetWindows} 窗口；无需付款、不退款；月费 ¥${formatMoneyCents(currentAmountCents)} → ¥${formatMoneyCents(newAmountCents)}`;
-}
-
-async function confirmWindowChange() {
-    const recordId = pendingWindowChangeUserId;
-    if (!recordId) return alert('找不到待修改的用户，请刷新后重试。');
-    if (!(await ensureCloudInitializedForAction())) return false;
-    const record = db.users.find(item => String(item.id) === String(recordId));
-    if (!record) return alert('找不到该用户，请刷新后重试。');
-    if (blockForWindowPayment(record, '主管理页面修改窗口')) return false;
-    const currentWindows = Number(record.windows);
-    const change = parseWindowChangeInput(document.getElementById('windowChangeInput').value, currentWindows);
-    if (!change) return alert('请输入最终窗口数（如 150、50），或输入相对变化（如 +50、-50）。');
-    const { targetWindows, delta } = change;
-    if (delta === 0) return alert(`当前已经是 ${currentWindows} 窗口，无需修改。`);
-    const baseCents = windowChangeBaseCentsForOwner(record.owner);
-    const currentAmountCents = recordMonthlyAmountCents(record, true);
-    if (baseCents === null && !isUnassignedOwner(record.owner)) return alert('该用户归属没有配置窗口价格。请先把归属设置为“知音科技”“雪莲”“小强”或“安然宝贝”。');
-    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || targetWindows < 0) return alert('修改后的窗口数必须是大于等于 0 的整数。');
-    if (currentAmountCents === null) return alert('当前金额无效，请先修正金额。');
-    const newAmountCents = windowAmountCentsAfterChange(record, targetWindows, delta);
-    if (newAmountCents === null) {
-        if (isUnassignedOwner(record.owner) && currentWindows <= 0) return alert('无归属用户按现有金额比例计算时，当前窗口数必须大于 0。');
-        return alert('无法根据当前窗口数和金额计算修改后的月费。');
-    }
-    const remainingDays = delta > 0 ? remainingWindowServiceDays(record.expiry) : null;
-    if (delta > 0 && remainingDays === null) return alert('当前到期日期无效，无法计算还需支付金额，请先修正到期日期。');
-    const amountDueCents = delta > 0 ? proratedWindowIncreaseCents(currentAmountCents, newAmountCents, remainingDays) : 0;
-    if (delta > 0 && amountDueCents === null) return alert('无法根据月费差额和剩余天数计算还需支付金额。');
-    if (activeWindowChangeTask(record)) return alert('该员工号已有修改窗口任务未完成，请等待完成或先在联动状态中取消。');
-    try {
-        await enqueueBitJob(
-            record,
-            BIT_WINDOW_QUOTA_ACTION,
-            newBitDedupeKey('window-quota', record, `${targetWindows}-${Date.now()}`),
-            { targetWindowCount: targetWindows }
-        );
-        record.windows = targetWindows;
-        record.windowTarget = targetWindows;
-        record.amount = formatMoneyCents(newAmountCents);
-        recordOperationLog(record, delta > 0 ? 'window_add' : 'window_reduce', {
-            operatedAt: new Date().toISOString(),
-            windows: targetWindows,
-            amount: record.amount
-        });
-        saveToCloud();
-        render();
-        closeWindowChangeModal();
-        const paymentNotice = delta > 0
-            ? `剩余 ${remainingDays} 天，还需支付 ¥${formatMoneyCents(amountDueCents)}（主管理页未发起付款）`
-            : '无需付款、不退款';
-        alert(`已提交修改窗口任务：${currentWindows} → ${targetWindows}；${paymentNotice}；月费已改为 ¥${record.amount}。`);
-        return true;
-    } catch (error) {
-        alert(`修改窗口任务创建失败：\n${bitSetupMessage(error)}`);
-        return false;
-    }
-}
-
-function openRenameUserModal(id) {
-    const record = db.users.find(item => String(item.id) === String(id));
-    if (!record) return alert('找不到该用户，请刷新后重试。');
-    const activeTask = activeAccountLifecycleTask(record);
-    if (activeTask) return alert(`当前“${BIT_ACTION_LABELS[activeTask.action] || activeTask.action}”任务为“${BIT_STATUS_LABELS[activeTask.status] || activeTask.status}”，请等待完成；如需放弃，请先在联动日志中取消该任务。`);
-    pendingRenameUserId = String(id);
-    document.getElementById('renameUserCurrent').textContent = `当前用户名：${record.username}    微信：${displayVal(record.wechat)}`;
-    document.getElementById('renameUserInput').value = String(record.username || '');
-    document.getElementById('renameUserModal').classList.add('open');
-    setTimeout(() => {
-        const input = document.getElementById('renameUserInput');
-        input.focus();
-        input.select();
-    }, 0);
-}
-
-function closeRenameUserModal() {
-    document.getElementById('renameUserModal').classList.remove('open');
-    pendingRenameUserId = null;
-}
-
-async function confirmRenameUser() {
-    const recordId = pendingRenameUserId;
-    const newUsername = document.getElementById('renameUserInput').value.trim();
-    if (!recordId) return false;
-    if (!newUsername) return alert('用户名不能为空。');
-    if (newUsername.length > 100 || /[,，\u0000-\u001f]/.test(newUsername)) return alert('用户名不能包含逗号或控制字符，且最多100个字符。');
-    if (!(await ensureCloudInitializedForAction())) return false;
-    const record = db.users.find(item => String(item.id) === String(recordId));
-    if (!record) return alert('找不到该用户，请刷新后重试。');
-    const previousUsername = String(record.username || '').trim();
-    if (newUsername === previousUsername) {
-        closeRenameUserModal();
-        return true;
-    }
-    if (!isUsernameUnique(newUsername, recordId)) return alert(`用户名“${newUsername}”已存在（用户列表、名额或回收站中），请更换。`);
-    const activeTask = activeAccountLifecycleTask(record);
-    if (activeTask) return alert(`当前“${BIT_ACTION_LABELS[activeTask.action] || activeTask.action}”任务尚未完成，请先处理该任务。`);
-    try {
-        await reserveBitUsernames([{ id: record.id, username: newUsername }]);
-        await enqueueBitJob(
-            record,
-            BIT_RENAME_ACTION,
-            newBitDedupeKey('rename', record, `${Date.now()}-${newUsername.toLowerCase()}`),
-            { newUsername: newUsername }
-        );
-        record.username = newUsername;
-        saveToCloud();
-        render();
-        closeRenameUserModal();
-        alert(`已提交改名任务：${previousUsername} → ${newUsername}。同步工具会修改 BitBrowser 真实名称。`);
-        return true;
-    } catch (error) {
-        alert(`用户名修改任务未创建，名称保持不变：\n${bitSetupMessage(error)}`);
-        return false;
-    }
-}
-
 function renderStatsBar() {
-    const s = { all: db.users.length, active: db.users.filter(u => getStatus(u.expiry) === 'active').length, expiring: db.users.filter(u => getStatus(u.expiry) === 'expiring').length, expired: db.users.filter(u => getStatus(u.expiry) === 'expired').length, unused: db.unused.length };
+    const scopedUsers = db.users.filter(isOwnerInScope);
+    const s = { all: scopedUsers.length, active: scopedUsers.filter(u => getStatus(u.expiry) === 'active').length, expiring: scopedUsers.filter(u => getStatus(u.expiry) === 'expiring').length, expired: scopedUsers.filter(u => getStatus(u.expiry) === 'expired').length, unused: db.unused.length };
     const labels = { all:'总用户', active:'有效', expiring:'即将到期', expired:'已过期', unused:'待激活' };
     document.getElementById('statsBar').innerHTML = Object.keys(labels).map(k => `<div class="stat-card ${currentFilter===k?'active':''}" onclick="currentFilter='${k}';render()"><div class="stat-label">${labels[k]}</div><div class="stat-value" style="color:var(--${k==='all'?'accent':k})">${s[k]}</div></div>`).join('');
 }
@@ -3355,7 +3295,7 @@ function renderStatsBar() {
 function renderUnusedGrid() {
     document.getElementById('unusedGrid').innerHTML = db.unused.map(u => {
         const username = escapeHtml(displayVal(u.username));
-        return `<div class="unused-item"><span>${username}</span><button class="btn btn-primary" style="height:18px; font-size:10px" onclick="activate('${u.id}')">激活</button></div>`;
+        return `<div class="unused-item"><span>${username}</span><button class="btn btn-primary" style="height:18px; font-size:9px" onclick="activate('${u.id}')">激活</button></div>`;
     }).join('');
 }
 
@@ -3380,30 +3320,6 @@ function isUsernameUnique(username, excludeId = null) {
     return !pools.some(u => String(u.username || '').trim().toLowerCase() === norm);
 }
 
-function activeUsernameRenameTask(record) {
-    if (!record) return null;
-    const sourceId = String(record.id || '');
-    return (db.bitTasks || []).find(task =>
-        String(task.action || '') === BIT_RENAME_ACTION &&
-        String(task.sourceRecordId || task.source_record_id || '') === sourceId &&
-        ['routing_required', 'pending', 'processing', 'retry_wait', 'needs_attention'].includes(String(task.status || ''))
-    ) || null;
-}
-
-function activeAccountLifecycleTask(record) {
-    if (!record) return null;
-    const sourceId = String(record.id || '');
-    const linkedJobId = String(record.bitJobId || '');
-    return (db.bitTasks || []).find(task =>
-        String(task.action || '') !== BIT_WINDOW_QUOTA_ACTION &&
-        (
-            String(task.sourceRecordId || task.source_record_id || '') === sourceId ||
-            (linkedJobId && String(task.id || '') === linkedJobId)
-        ) &&
-        ['routing_required', 'pending', 'processing', 'retry_wait', 'needs_attention'].includes(String(task.status || ''))
-    ) || null;
-}
-
 function scheduleRenderWhenEditIdle(delay = 300) {
     clearTimeout(_idleRenderTimer);
     _idleRenderTimer = setTimeout(() => {
@@ -3416,17 +3332,8 @@ function scheduleRenderWhenEditIdle(delay = 300) {
 }
 
 function makeEditable(el, id, field) {
-    const allowedFields = new Set(['owner', 'wechat', 'xianyu', 'activeTime', 'expiry', 'amount']);
+    const allowedFields = new Set(['wechat']);
     if (!allowedFields.has(field)) return;
-    const record = db.users.find(x => x.id === id);
-    if (record && ['owner', 'activeTime', 'expiry', 'amount'].includes(field) && blockForWindowPayment(record, `修改${field}`)) return;
-    if (field === 'username') {
-        const activeTask = activeAccountLifecycleTask(record);
-        if (activeTask) {
-            alert(`当前“${BIT_ACTION_LABELS[activeTask.action] || activeTask.action}”任务为“${BIT_STATUS_LABELS[activeTask.status] || activeTask.status}”，请等待完成；如需放弃，请先在联动日志中取消该任务。`);
-            return;
-        }
-    }
     const oldVal = el.innerText === '-' ? '' : el.innerText;
     const input = document.createElement('input');
     input.className = 'edit-input inline-edit-input';
@@ -3493,26 +3400,10 @@ function makeEditable(el, id, field) {
                 render(); // 恢复原值
                 return;
             }
-            if (newVal.length > 100 || /[,，\u0000-\u001f]/.test(newVal)) {
-                alert('❌ 用户名不能包含逗号或控制字符，且最多100个字符。');
-                render();
-                return;
-            }
-            const previousUsername = String(u.username || '').trim();
-            if (newVal === previousUsername) {
-                render();
-                return;
-            }
             try {
                 await reserveBitUsernames([{ id: u.id, username: newVal }]);
-                await enqueueBitJob(
-                    u,
-                    BIT_RENAME_ACTION,
-                    newBitDedupeKey('rename', u, `${Date.now()}-${newVal.toLowerCase()}`),
-                    { newUsername: newVal }
-                );
             } catch (error) {
-                alert(`❌ 用户名修改任务未创建，网页用户名保持不变：\n${bitSetupMessage(error)}`);
+                alert(`❌ 用户名未保存：\n${bitSetupMessage(error)}`);
                 render();
                 return;
             }
@@ -3562,15 +3453,11 @@ async function batchAction(type) {
     }
     if (type === 'rollback') {
         if (!(await showActionConfirm("批量回退？", { title:'批量回退确认', confirmText:'确认回退' }))) return;
-        const blocked = [];
-        let changed = false;
-        ids.forEach(id => {
-            const record = db.users.find(item => item.id === id);
-            if (record && (activeUsernameRenameTask(record) || activeWindowPaymentLock(record))) blocked.push(record.username);
-            else changed = rollbackUser(id, { skipConfirm: true, noSave: true, noRender: true }) || changed;
-        });
-        if (changed) saveToCloud();
-        if (blocked.length) alert(`以下员工号正在修改用户名，暂不能回退：\n\n${blocked.join('\n')}`);
+        const locked = ids.map(id => db.users.find(item => item.id === id)).filter(record => record && activeWindowPaymentLock(record));
+        ids.filter(id => !locked.some(record => String(record.id) === String(id)))
+            .forEach(id => rollbackUser(id, { skipConfirm: true, noSave: true, noRender: true }));
+        saveToCloud();
+        if (locked.length) alert(`以下员工号存在窗口付款订单，已跳过回退：\n\n${locked.map(record => record.username).join('\n')}`);
     }
     cancelSelect();
     render();
@@ -3580,15 +3467,41 @@ async function batchAction(type) {
 function toggleSelectAllTrash() { document.querySelectorAll('.trash-cb').forEach(cb => cb.checked = document.getElementById('selectAllTrash').checked); }
 async function batchRestoreTrash() {
     const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value);
-    if(ids.length === 0) return;
+    if(ids.length === 0) return false;
+    if (!(await ensureCloudInitializedForAction())) return false;
+    const selectedRecords = ids.map(id => db.trash.find(record => String(record.id) === String(id) && isOwnerInScope(record)));
+    const selectedCents = selectedRecords.map(record => recordMonthlyAmountCents(record));
+    if (selectedRecords.some(record => !record) || selectedCents.some(cents => cents === null)) return alert('选中项目中存在金额无效或不属于小强的员工号，请刷新后重试。');
+    const totalAmount = selectedCents.reduce((sum, cents) => sum + cents, 0) / 100;
+    if (!(await showActionConfirm(`确定续费并恢复选中的 ${ids.length} 个 BitBrowser 员工号？\n\n应付合计 ¥${totalAmount.toFixed(2)}。`, { title:'批量续费恢复', confirmText:'确认并支付' }))) return false;
+    const payment = await requestPaidOperation('batch_renew', ids, `小强 · 批量续费 ${ids.length} 个`);
+    if (!payment) return false;
+    let pendingIds = ids.filter(id => !paymentAlreadyApplied(payment, id, 'renew'));
+    if (pendingIds.length === 0) {
+        await completePaidOperation(payment, { recordIds:ids.map(String), action:'batch_renew', duplicatePrevented:true });
+        alert('该付款订单中的员工号均已完成续费，无需重复处理。');
+        return true;
+    }
+    if (!(await ensureCloudInitializedForAction())) {
+        alert('✅ 已确认付款，但暂时无法同步云端数据。请不要重复付款，稍后用同一页面重试。');
+        return false;
+    }
+    const pricingMismatch = pendingIds.some(id => {
+        const record = db.trash.find(item => String(item.id) === String(id) && isOwnerInScope(item));
+        const cents = recordMonthlyAmountCents(record);
+        const pricing = Array.isArray(payment.pricing) ? payment.pricing.find(item => String(item.recordId) === String(id)) : null;
+        return !record || cents === null || !pricing || Number(pricing.amountCents) !== cents || Number(pricing.windows) !== Number(record.windows);
+    });
+    if (pricingMismatch) {
+        alert('✅ 已确认付款，但扫码期间部分员工号的窗口或月费发生变化，系统未执行这些续费。请不要重复付款并联系管理员。订单号：' + payment.orderNo);
+        return false;
+    }
     const operationClickedAt = new Date().toISOString();
-    if (!(await ensureCloudInitializedForAction())) return;
-    if (!(await showActionConfirm(`确定续费并恢复选中的 ${ids.length} 个 BitBrowser 员工号？`, { title:'批量续费恢复', confirmText:'确认续费' }))) return;
     let activatedAny = false;
     const errors = [];
     showLoading(true, { blocking: false });
-    for (const id of ids) {
-        const restored = db.trash.find(u => u.id === id);
+    for (const id of pendingIds) {
+        const restored = db.trash.find(u => u.id === id && isOwnerInScope(u));
         if (restored) {
             const expiryBefore = String(restored.expiry || '');
             const newExpiry = getRenewedExpiry(restored);
@@ -3601,16 +3514,33 @@ async function batchRestoreTrash() {
                 delete restored._bitPendingRecoverKey;
                 delete restored.operated;
                 db.users.push(restored);
-                recordOperationLog(restored, 'renew', { operatedAt: operationClickedAt, expiryBefore, expiryAfter: newExpiry });
+                recordOperationLog(restored, 'renew', paidLogDetails(payment, { operatedAt: operationClickedAt, expiryBefore, expiryAfter: newExpiry }));
                 activatedAny = true;
             } catch (error) {
                 errors.push(`${restored.username}：${bitSetupMessage(error)}`);
             }
+        } else {
+            errors.push(`${id}：当前不在小强回收站中`);
         }
     }
     showLoading(false);
-    if (activatedAny) { saveToCloud(); renderTrash(); render(); }
-    if (errors.length) alert(`有 ${errors.length} 个员工号未能恢复：\n\n${errors.join('\n')}`);
+    if (activatedAny) {
+        saveToCloud();
+        renderTrash();
+        render();
+        const saved = await waitForPaidSave();
+        if (!saved) {
+            alert('✅ 付款已确认，但部分续费数据仍在等待云端保存。请不要重复付款，并保持页面打开。');
+            return false;
+        }
+    }
+    pendingIds = ids.filter(id => !paymentAlreadyApplied(payment, id, 'renew'));
+    if (errors.length || pendingIds.length) {
+        alert(`✅ 付款已确认，但有 ${Math.max(errors.length, pendingIds.length)} 个员工号尚未完成恢复。\n\n${errors.join('\n')}\n\n请不要重复付款；处理问题后，用同一页面再次点击批量续费即可复用本订单。\n订单号：${payment.orderNo}`);
+        return false;
+    }
+    await completePaidOperation(payment, { recordIds:ids.map(String), action:'batch_renew' });
+    return true;
 }
 async function batchDeleteTrash() {
     const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value);
@@ -3638,7 +3568,7 @@ async function batchDeleteTrash() {
     }
     if (errors.length) alert(`有 ${errors.length} 个删除任务未创建，记录已保留：\n\n${errors.join('\n')}`);
 }
-function exportTrashSelected() { const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value); const list = ids.length > 0 ? db.trash.filter(u => ids.includes(u.id)) : db.trash; if(list.length === 0) return alert('回收站为空'); const ws = XLSX.utils.json_to_sheet(list.map(u => ({"归属": u.owner||'-', "窗口数": u.windows||'', "用户名": u.username, "密码": u.password||'', "微信": u.wechat||'-', "咸鱼": u.xianyu||'-', "激活时间": u.activeTime||'-', "金额": u.amount||'0', "到期日期": u.expiry||'-'}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "回收站导出"); XLSX.writeFile(wb, `回收站导出_${Date.now()}.xlsx`); }
+function exportTrashSelected() { const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value); const scopedTrash = db.trash.filter(isOwnerInScope); const list = ids.length > 0 ? scopedTrash.filter(u => ids.includes(u.id)) : scopedTrash; if(list.length === 0) return alert('回收站为空'); const ws = XLSX.utils.json_to_sheet(list.map(u => ({"归属": u.owner||'-', "窗口数": u.windows||'', "用户名": u.username, "密码": u.password||'', "微信": u.wechat||'-', "咸鱼": u.xianyu||'-', "激活时间": u.activeTime||'-', "金额": u.amount||'0', "到期日期": u.expiry||'-'}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "回收站导出"); XLSX.writeFile(wb, `回收站导出_${Date.now()}.xlsx`); }
 async function batchRollbackTrash() {
     const ids = Array.from(document.querySelectorAll('.trash-cb:checked')).map(cb => cb.value);
     if (!ids.length) return;
@@ -3676,141 +3606,53 @@ function excelDateToStr(val) {
     return String(val).trim() || '-';
 }
 
-function renderExcelImportPreview(users, fileName = '') {
-    const summary = document.getElementById('excelImportPreviewSummary');
-    const body = document.getElementById('excelImportPreviewBody');
-    summary.textContent = `文件：${fileName || '-'}；共 ${users.length} 位用户。请逐条核对，确认无误后点击“确认导入”即可写入。`;
-    body.innerHTML = users.map((user, index) => `
-        <tr>
-          <td style="text-align:center;">${index + 1}</td>
-          <td title="${escapeHtml(displayVal(user.owner))}">${escapeHtml(displayVal(user.owner))}</td>
-          <td>${escapeHtml(displayVal(user.windows))}</td>
-          <td title="${escapeHtml(displayVal(user.username))}"><b>${escapeHtml(displayVal(user.username))}</b></td>
-          <td title="${escapeHtml(displayVal(user.password))}">${escapeHtml(displayVal(user.password))}</td>
-          <td title="${escapeHtml(displayVal(user.wechat))}">${escapeHtml(displayVal(user.wechat))}</td>
-          <td title="${escapeHtml(displayVal(user.xianyu))}">${escapeHtml(displayVal(user.xianyu))}</td>
-          <td>${escapeHtml(displayVal(user.activeTime))}</td>
-          <td>${escapeHtml(displayVal(user.amount))}</td>
-          <td>${escapeHtml(displayVal(user.expiry))}</td>
-        </tr>
-    `).join('');
-}
-
-function openExcelImportPreview(users, fileName = '') {
-    pendingExcelImport = {
-        users: users.map(user => ({ ...user })),
-        fileName: String(fileName || '')
-    };
-    renderExcelImportPreview(pendingExcelImport.users, pendingExcelImport.fileName);
-    document.getElementById('excelImportPreviewModal').classList.add('open');
-}
-
-function closeExcelImportPreview() {
-    pendingExcelImport = null;
-    _isConfirmingExcelImport = false;
-    const modal = document.getElementById('excelImportPreviewModal');
-    const body = document.getElementById('excelImportPreviewBody');
-    const summary = document.getElementById('excelImportPreviewSummary');
-    const button = document.getElementById('confirmExcelImportButton');
-    const input = document.getElementById('excelImportInput');
-    if (modal) modal.classList.remove('open');
-    if (body) body.innerHTML = '';
-    if (summary) summary.textContent = '';
-    if (button) button.disabled = false;
-    if (input) input.value = '';
-}
-
-async function confirmExcelImportPreview() {
-    if (_isConfirmingExcelImport) return false;
-    const batch = pendingExcelImport;
-    const users = Array.isArray(batch?.users) ? batch.users : [];
-    if (!users.length) return alert('没有可导入的用户，请重新选择 Excel 文件。');
-    _isConfirmingExcelImport = true;
-    const button = document.getElementById('confirmExcelImportButton');
-    if (button) button.disabled = true;
-    try {
-        const duplicates = users.filter(user => !isUsernameUnique(user.username)).map(user => user.username);
-        if (duplicates.length) {
-            alert(`导入中止：预览期间以下用户名已被使用，请重新选择文件：\n\n${duplicates.join('\n')}`);
-            closeExcelImportPreview();
-            return false;
-        }
-        await reserveBitUsernames(users);
-        users.forEach(user => db.users.push(user));
-        saveToCloud();
-        render();
-        const importedCount = users.length;
-        closeExcelImportPreview();
-        alert(`导入成功：已添加 ${importedCount} 位用户。`);
-        return true;
-    } catch (error) {
-        alert(`导入中止，用户名永久唯一校验失败：\n${bitSetupMessage(error)}`);
-        return false;
-    } finally {
-        _isConfirmingExcelImport = false;
-        if (button) button.disabled = false;
-    }
-}
-
 function importExcel(input) {
-    const file = input?.files?.[0];
-    if (!file) return false;
     const r = new FileReader();
-    r.onload = (e) => {
-        try {
-            // cellDates:true 让 XLSX 自动把日期序列号转为 JS Date 对象
-            const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array', cellDates: true});
-            const firstSheet = wb.Sheets[wb.SheetNames[0]];
-            if (!firstSheet) throw new Error('Excel 中没有可读取的工作表。');
-            const json = XLSX.utils.sheet_to_json(firstSheet);
-            const duplicates = [];
-            const toAdd = [];
-            const seenInFile = new Set();
-            json.forEach((row, index) => {
-                if (!row["用户名"]) return;
-                const uname = String(row["用户名"]).trim();
-                if (!uname) return;
-                if (!isUsernameUnique(uname) || seenInFile.has(uname.toLowerCase())) {
-                    duplicates.push(uname);
-                } else {
-                    seenInFile.add(uname.toLowerCase());
-                    toAdd.push({
-                        id: `u_${Date.now()}_${index}_${Math.random().toString(16).slice(2)}`,
-                        owner: row["归属"]||'-',
-                        windows: row["窗口数"]||DEFAULT_WINDOWS,
-                        username: uname,
-                        password: String(row["密码"]||DEFAULT_PWD),
-                        wechat: row["微信"]||'-',
-                        xianyu: row["咸鱼"]||'-',
-                        activeTime: excelDateToStr(row["激活时间"]),
-                        amount: row["金额"]||DEFAULT_AMOUNT,
-                        expiry: excelDateToStr(row["到期日期"]),
-                        isStarred: false
-                    });
-                }
-            });
-            if (duplicates.length > 0) {
-                alert(`导入中止：以下 ${duplicates.length} 个用户名已存在，请修正后重新导入：\n\n${duplicates.join('\n')}`);
-                input.value = '';
-                return;
+    r.onload = async (e) => {
+        // cellDates:true 让 XLSX 自动把日期序列号转为 JS Date 对象
+        const wb = XLSX.read(new Uint8Array(e.target.result), {type: 'array', cellDates: true});
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+        const duplicates = [];
+        const toAdd = [];
+        const seenInFile = new Set();
+        json.forEach(row => {
+            if (!row["用户名"]) return;
+            const uname = String(row["用户名"]).trim();
+            if (!uname) return;
+            if (!isUsernameUnique(uname) || seenInFile.has(uname.toLowerCase())) {
+                duplicates.push(uname);
+            } else {
+                seenInFile.add(uname.toLowerCase());
+                toAdd.push({
+                    id: 'u_'+Date.now()+Math.random(),
+                    owner: DEFAULT_OWNER,
+                    windows: row["窗口数"]||DEFAULT_WINDOWS,
+                    username: uname,
+                    password: String(row["密码"]||DEFAULT_PWD),
+                    wechat: row["微信"]||'-',
+                    xianyu: row["咸鱼"]||'-',
+                    activeTime: excelDateToStr(row["激活时间"]),
+                    amount: row["金额"]||DEFAULT_AMOUNT,
+                    expiry: excelDateToStr(row["到期日期"]),
+                    isStarred: false
+                });
             }
-            if (!toAdd.length) {
-                alert('Excel 中没有找到可导入的有效用户。');
-                input.value = '';
-                return;
-            }
-            openExcelImportPreview(toAdd, file.name);
-        } catch (error) {
-            alert(`Excel 解析失败：\n${error?.message || error}`);
-            input.value = '';
+        });
+        if (duplicates.length > 0) {
+            alert(`⚠️ 导入中止：以下 ${duplicates.length} 个用户名已存在，请修正后重新导入：\n\n${duplicates.join('\n')}`);
+            input.value = ''; return;
         }
+        try {
+            await reserveBitUsernames(toAdd);
+        } catch (error) {
+            alert(`❌ 导入中止，用户名永久唯一校验失败：\n${bitSetupMessage(error)}`);
+            input.value = '';
+            return;
+        }
+        toAdd.forEach(u => db.users.push(u));
+        saveToCloud(); render(); input.value = '';
     };
-    r.onerror = () => {
-        alert('Excel 文件读取失败，请重新选择文件。');
-        input.value = '';
-    };
-    r.readAsArrayBuffer(file);
-    return true;
+    r.readAsArrayBuffer(input.files[0]);
 }
 
 function downloadTemplate() { const ws = XLSX.utils.aoa_to_sheet([["归属","窗口数", "用户名", "密码", "微信", "咸鱼", "激活时间", "金额", "到期日期"]]); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "模版"); XLSX.writeFile(wb, "导入模版.xlsx"); }
@@ -3864,7 +3706,7 @@ function buildUserCopyText(record) {
 }
 
 function copyUserSummary(id) {
-    const record = db.users.find(item => String(item.id) === String(id));
+    const record = db.users.find(item => String(item.id) === String(id) && isOwnerInScope(item));
     if (!record) return alert('找不到该用户，请刷新后重试。');
     copyToClipboard(buildUserCopyText(record));
 }
