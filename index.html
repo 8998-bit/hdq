@@ -2243,6 +2243,8 @@ async function _doSaveToCloud() {
             if (!_verError && _verData && _verData.updated_at !== lastKnownUpdatedAt) {
                 console.log('[save] 预检发现云端版本已变化，跳过整包写入，直接进入冲突合并');
                 conflictDetected = true;
+                clearTimeout(_saveTimer);
+                _saveTimer = null;
                 _hasPendingSave = true;
                 if (!isSilent) _isSilentSave = false;
                 statusEl.innerHTML = `<span style="color:var(--warning); font-weight:bold;">☁️ 冲突解决中，自动合并...</span>`;
@@ -2275,6 +2277,8 @@ async function _doSaveToCloud() {
         if (lastKnownUpdatedAt !== 'FRESH' && (!opResult.data || opResult.data.length === 0)) {
             console.log("[save] 并发冲突，启动三向合并自愈机制");
             conflictDetected = true;
+            clearTimeout(_saveTimer);
+            _saveTimer = null;
             _hasPendingSave = true;
             if (!isSilent) _isSilentSave = false;
             statusEl.innerHTML = `<span style="color:var(--warning); font-weight:bold;">☁️ 冲突解决中，自动合并...</span>`;
