@@ -477,7 +477,7 @@ function recordMonthlyAmountCents(record, allowZero = false) {
 }
 
 function formatMoneyCents(cents) {
-    return (Number(cents) / 100).toFixed(2);
+    return String(Number((Number(cents) / 100).toFixed(2)));
 }
 
 function validRenewalPriceOrAlert(record) {
@@ -2962,7 +2962,7 @@ function toggleStar(id) {
 async function activate(id) {
     const u = db.unused.find(x => x.id === id);
     if(!u) return false;
-    if (!(await showActionConfirm(`确定激活“${u.username}”？\n\n默认窗口数${DEFAULT_WINDOWS}\n需支付：¥${Number(DEFAULT_AMOUNT).toFixed(2)}`, { title:'激活确认', confirmText:'确认并支付' }))) return false;
+    if (!(await showActionConfirm(`确定激活“${u.username}”？\n\n默认窗口数${DEFAULT_WINDOWS}\n需支付：¥${Number(DEFAULT_AMOUNT)}`, { title:'激活确认', confirmText:'确认并支付' }))) return false;
     const operationClickedAt = new Date().toISOString();
     if (!(await ensureCloudInitializedForAction())) return false;
 
@@ -3085,7 +3085,7 @@ function showRenewalConfirm(record, nextExpiry, amount = null) {
     document.getElementById('renewalConfirmCurrentExpiry').textContent = record.expiry || '-';
     document.getElementById('renewalConfirmNextExpiry').textContent = nextExpiry || '-';
     document.getElementById('renewalConfirmWindows').textContent = String(record.windows || 0);
-    document.getElementById('renewalConfirmAmount').textContent = showPaymentDetails ? `¥${Number(amount).toFixed(2)}` : '';
+    document.getElementById('renewalConfirmAmount').textContent = showPaymentDetails ? `¥${Number(amount)}` : '';
     document.getElementById('renewalConfirmWindowsRow').hidden = !showPaymentDetails;
     document.getElementById('renewalConfirmAmountRow').hidden = !showPaymentDetails;
     const modal = document.getElementById('renewalConfirmModal');
@@ -3253,7 +3253,7 @@ async function restore(id) {
         let restored = db.trash[idx];
         let renewalPrice = validRenewalPriceOrAlert(restored);
         if (renewalPrice === null) return false;
-        if (!(await showActionConfirm(`确定为“${restored.username}”续费30天并恢复 BitBrowser 员工号？\n\n窗口：${restored.windows}\n需支付：¥${renewalPrice.toFixed(2)}`, { title:'续费恢复确认', confirmText:'确认并支付' }))) return false;
+        if (!(await showActionConfirm(`确定为“${restored.username}”续费30天并恢复 BitBrowser 员工号？\n\n窗口：${restored.windows}\n需支付：¥${Number(renewalPrice)}`, { title:'续费恢复确认', confirmText:'确认并支付' }))) return false;
         const payment = await requestPaidOperation('restore', [id], `小强 · ${restored.username} 续费恢复`);
         if (!payment) return false;
         if (paymentAlreadyApplied(payment, id, 'renew')) {
@@ -3498,7 +3498,7 @@ async function batchRestoreTrash() {
     const selectedCents = selectedRecords.map(record => recordMonthlyAmountCents(record));
     if (selectedRecords.some(record => !record) || selectedCents.some(cents => cents === null)) return alert('选中项目中存在金额无效或不属于小强的员工号，请刷新后重试。');
     const totalAmount = selectedCents.reduce((sum, cents) => sum + cents, 0) / 100;
-    if (!(await showActionConfirm(`确定续费并恢复选中的 ${ids.length} 个 BitBrowser 员工号？\n\n应付合计 ¥${totalAmount.toFixed(2)}。`, { title:'批量续费恢复', confirmText:'确认并支付' }))) return false;
+    if (!(await showActionConfirm(`确定续费并恢复选中的 ${ids.length} 个 BitBrowser 员工号？\n\n应付合计 ¥${Number(totalAmount)}。`, { title:'批量续费恢复', confirmText:'确认并支付' }))) return false;
     const payment = await requestPaidOperation('batch_renew', ids, `小强 · 批量续费 ${ids.length} 个`);
     if (!payment) return false;
     let pendingIds = ids.filter(id => !paymentAlreadyApplied(payment, id, 'renew'));
