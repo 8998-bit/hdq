@@ -1905,6 +1905,27 @@ function renderBitIntegration() {
         (rows || `<div style="text-align:center; padding:35px; color:#fff; font-size:13px;">${jobSearchValue ? '没有找到匹配的联动任务' : '暂无联动任务'}</div>`);
 }
 
+async function refreshBitIntegrationLight() {
+    const now = Date.now();
+    bitConnectorRoutes = activeConnectors.map(connector => ({
+        connector,
+        prefixes: visibleConnectorPrefixes(connector)
+    })).filter(item => item.prefixes.length).map(({ connector, prefixes }) => {
+        const lastSeen = connector.lastSeen || connector.last_seen || null;
+        const seenAt = lastSeen ? new Date(lastSeen).getTime() : 0;
+        return {
+            connector_id: connector.id,
+            display_name: connector.displayName || connector.display_name || '未命名连接器',
+            account_prefix: prefixes.join(','),
+            last_seen: lastSeen,
+            online: connector.enabled !== false && Number.isFinite(seenAt) && now - seenAt < BIT_CONNECTOR_OFFLINE_MS
+        };
+    });
+    bitIntegrationAvailable = true;
+    bitIntegrationMessage = '任务保存在MainData；连接器心跳已使用独立轻量通道';
+    renderBitIntegration();
+}
+
 async function refreshBitIntegration(silent = true) {
     if (_bitRefreshPromise) return _bitRefreshPromise;
     _bitRefreshPromise = (async () => {
@@ -1986,7 +2007,7 @@ async function syncConnectors(silent = true) {
         const knownConnectorIds = new Set((db.bitConnectors || []).map(connector => String(connector?.id || '')).filter(Boolean));
         connectorHeartbeatById = new Map((data || []).filter(row => knownConnectorIds.has(String(row.connector_id || ''))).map(row => [String(row.connector_id || ''), row]));
         rebuildActiveConnectors();
-        await refreshBitIntegration(true);
+        await refreshBitIntegrationLight();
     } catch (err) {
         console.error('[sync] 拉取连接器心跳失败:', err);
         rebuildActiveConnectors();
@@ -2104,7 +2125,7 @@ async function syncFromCloud(silent = false) {
         const cloudUpdatedAt = versionData?.updated_at || 'FRESH';
         if (lastKnownUpdatedAt && cloudUpdatedAt === lastKnownUpdatedAt) {
             document.getElementById('syncStatus').innerText = `✅ 已是最新 ${getBeijingTimeString()}`;
-            await refreshBitIntegration(true);
+            await refreshBitIntegrationLight();
             await processExpiredUsers();
             render();
             return;
