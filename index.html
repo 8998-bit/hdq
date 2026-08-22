@@ -479,6 +479,12 @@ function recordMonthlyAmountCents(record, allowZero = false) {
 function formatMoneyCents(cents) {
     return String(Number((Number(cents) / 100).toFixed(2)));
 }
+function cleanAmount(v, fallback) {
+  if (v === null || v === undefined || v === '') return fallback === undefined ? '' : fallback;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return String(v);
+  return String(n);
+}
 
 function validRenewalPriceOrAlert(record) {
     const cents = recordMonthlyAmountCents(record);
@@ -1050,13 +1056,22 @@ const BIT_RESULT_LABELS = {
 };
 const OPERATION_ACTION_LABELS = { activate: '激活', renew: '续费', window_add: '增加窗口', window_reduce: '减少窗口', window_sync: 'BitBrowser窗口同步' };
 
+
+function normAmount(v) {
+    if (v === undefined || v === null || v === '') return v;
+    const n = Number(v);
+    return Number.isFinite(n) ? String(n) : v;
+}
+function cleanAmountList(arr) {
+    return Array.isArray(arr) ? arr.map(u => (u && typeof u === 'object') ? { ...u, amount: normAmount(u.amount) } : u) : [];
+}
 function normalizeDb(value) {
     const src = value && typeof value === 'object' ? value : {};
     return {
         ...src,
-        users: Array.isArray(src.users) ? src.users : [],
-        unused: Array.isArray(src.unused) ? src.unused : [],
-        trash: Array.isArray(src.trash) ? src.trash : [],
+        users: cleanAmountList(src.users),
+        unused: cleanAmountList(src.unused),
+        trash: cleanAmountList(src.trash),
         bitTasks: Array.isArray(src.bitTasks) ? src.bitTasks : [],
         bitConnectors: Array.isArray(src.bitConnectors) ? src.bitConnectors : [],
         bitInventory: Array.isArray(src.bitInventory) ? src.bitInventory : [],
@@ -1164,7 +1179,7 @@ function renderOperationLogs() {
         <div>${escapeHtml(log.wechat || '-')}</div>
         <div>${escapeHtml(OPERATION_ACTION_LABELS[log.action] || log.action || '-')}</div>
         <div>${escapeHtml(log.windows || '-')}</div>
-        <div>${(log.amount || log.paymentAmount) ? '¥' + escapeHtml(log.amount || log.paymentAmount) : '-'}</div>
+        <div>${(log.amount || log.paymentAmount) ? '¥' + escapeHtml(cleanAmount(log.amount || log.paymentAmount)) : '-'}</div>
         <div>${escapeHtml(formatOperationTime(log.operatedAt))}</div>
         <div>${escapeHtml(log.expiryBefore || '-')}</div>
         <div>${escapeHtml(log.expiryAfter || '-')}</div>
@@ -2844,7 +2859,7 @@ function render(forceSort = false) {
         const xianyu = escapeHtml(displayVal(u.xianyu));
         const activeTime = escapeHtml(displayVal(u.activeTime));
         const expiry = escapeHtml(displayVal(u.expiry));
-        const amount = escapeHtml(displayVal(withDefault(u.amount, DEFAULT_AMOUNT)));
+        const amount = escapeHtml(cleanAmount(withDefault(u.amount, DEFAULT_AMOUNT)));
         const bitBadge = bitBadgeForRecord(u);
         
         tr.innerHTML = `
@@ -2930,7 +2945,7 @@ function renderTrash() {
         const wechat = escapeHtml(displayVal(u.wechat));
         const xianyu = escapeHtml(displayVal(u.xianyu));
         const expiryShort = escapeHtml(formatShortDate(u.expiry));
-        const amount = escapeHtml(displayVal(withDefault(u.amount, '0')));
+        const amount = escapeHtml(cleanAmount(withDefault(u.amount, '0')));
         const bitBadge = bitBadgeForRecord(u);
         return `
         <div class="trash-row">
@@ -3433,7 +3448,7 @@ function makeEditable(el, id, field) {
                 return;
             }
         }
-        u[field] = newVal;
+        u[field] = field === 'amount' ? normAmount(newVal) : newVal;
         saveToCloud();
         const safeVal = escapeHtml(displayVal(newVal));
         el.innerHTML = field === 'username' ? `<b>${safeVal}</b>` : safeVal;
