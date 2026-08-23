@@ -351,7 +351,7 @@
   <div class="modal" style="width:min(540px, calc(100vw - 24px));">
     <h3 style="font-size:16px; color:var(--accent); margin-bottom:8px;">修改窗口</h3>
     <div id="windowChangeUser" style="font-size:12px; color:#fff; margin-bottom:10px; white-space:pre-line;"></div>
-    <input id="windowChangeInput" class="edit-input" inputmode="numeric" autocomplete="off" placeholder="例如：150、50、+50 或 -50" oninput="updateWindowChangePreview()">
+    <input id="windowChangeInput" class="edit-input" inputmode="numeric" autocomplete="off" placeholder="例如：100、50、150；100口内只能 50 或 100" oninput="updateWindowChangePreview()">
     <div style="font-size:11px; color:#aab2c2; margin-top:7px;">不带符号＝修改后的总窗口数；带 + / - ＝在当前窗口数上增减。</div>
     <div id="windowChangePreview" style="font-size:12px; color:var(--accent); margin-top:10px; min-height:18px;"></div>
     <div class="window-change-warning" style="font-size:21px; color:#fff; line-height:1.55; margin-top:12px;">
@@ -459,6 +459,10 @@ const ROW_ID = 1;
 
 const DEFAULT_WINDOWS = '100';
 const DEFAULT_AMOUNT = '15';
+const ACTIVATION_AMOUNT_50 = 15;   // 激活 50 口金额（元）
+const ACTIVATION_AMOUNT_100 = 15;  // 激活 100 口金额（元）
+const TIER_WINDOWS_LOW = 50;
+const TIER_WINDOWS_HIGH = 100;
 const DEFAULT_PWD = '123456';
 const BIT_CONNECTOR_OFFLINE_MS = 60000;
 const BIT_CONNECTOR_RETENTION_MS = 24 * 60 * 60 * 1000;
@@ -737,6 +741,100 @@ async function autoResumePendingPaidOrders() {
     }
 }
 
+// ── 新窗口定价规则辅助函数 ──
+function tierWindowsFor(win) {
+    const w = Number(win);
+    if (!Number.isSafeInteger(w) || w < 0) return null;
+    // 100 口以内只有 50 / 100 两档（50 口起，50 口为下限）
+    if (w <= TIER_WINDOWS_HIGH) return w === TIER_WINDOWS_LOW ? TIER_WINDOWS_LOW : w === TIER_WINDOWS_HIGH ? TIER_WINDOWS_HIGH : null;
+    return w; // >100 随机口数
+}
+
+function activationAmountForWindows(win) {
+    const t = tierWindowsFor(win);
+    if (t === TIER_WINDOWS_LOW) return ACTIVATION_AMOUNT_50;
+    if (t === TIER_WINDOWS_HIGH) return ACTIVATION_AMOUNT_100;
+    // >100：按 100 口基数线性折算（分）
+    if (t > TIER_WINDOWS_HIGH) return Math.round(ACTIVATION_AMOUNT_100 * t / 100);
+    return null;
+}
+
+function windowChangePlan(record, targetWindows, delta) {
+    // 返回 { ok, message, newAmountCents, feeCents, newWindows }
+    const currentWindows = Number(record?.windows);
+    const target = Number(targetWindows);
+    const change = Number(delta);
+    const currentAmountCents = recordMonthlyAmountCents(record, true);
+    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || !Number.isSafeInteger(target) || target < 0) {
+        return { ok:false, message:'当前窗口数或目标窗口数无效。' };
+    }
+    if (!Number.isSafeInteger(change) || change === 0 || target !== currentWindows + change) {
+        return { ok:false, message:'窗口变化无效。' };
+    }
+    // ≤100：只允许 50/100 两档
+    if (target <= TIER_WINDOWS_HIGH || currentWindows <= TIER_WINDOWS_HIGH) {
+        if (currentWindows !== TIER_WINDOWS_LOW && currentWindows !== TIER_WINDOWS_HIGH) {
+            return { ok:false, message:'100 口以内的窗口数只有 50 口和 100 口两档，请先修正当前窗口数。' };
+        }
+        if (target !== TIER_WINDOWS_LOW && target !== TIER_WINDOWS_HIGH) {
+            return { ok:false, message:'100 口以内只能调整为 50 口或 100 口。' };
+        }
+        if (Math.abs(change) !== (TIER_WINDOWS_HIGH - TIER_WINDOWS_LOW)) {
+            return { ok:false, message:'100 口以内加减窗口只能 ±50 口（50 ↔ 100）。' };
+        }
+        // 减窗口：退到 50 口金额，不退钱
+        if (change < 0) {
+            return {
+                ok:true,
+                newWindows: target,
+                newAmountCents: String(ACTIVATION_AMOUNT_50) * 100 | 0, // 50口档金额
+                feeCents: 0,
+                message: ''
+            };
+        }
+        // 加窗口 50→100：小强差额 0 免费；知音雪莲 25→30 差 5 元按剩余天数折算
+        const diffCents = (ACTIVATION_AMOUNT_100 - ACTIVATION_AMOUNT_50) * 100;
+        const remainingDays = remainingWindowServiceDays(record.expiry);
+        if (remainingDays === null) {
+            return { ok:false, message:'到期日期无效，请先联系管理员修正。' };
+        }
+        const feeCents = Math.round(diffCents * remainingDays / 30);
+        return {
+            ok:true,
+            newWindows: target,
+            newAmountCents: ACTIVATION_AMOUNT_100 * 100,
+            feeCents: Number.isSafeInteger(feeCents) && feeCents >= 0 ? feeCents : 0,
+            message: ''
+        };
+    }
+    // >100：随机加减，按 100 口基数折算
+    const baseCents = WINDOW_CHANGE_BASE_CENTS;
+    if (change > 0) {
+        const monthlyDeltaCents = Math.round(baseCents * change / 100);
+        const newAmountCents = currentAmountCents + monthlyDeltaCents;
+        const remainingDays = remainingWindowServiceDays(record.expiry);
+        if (remainingDays === null) return { ok:false, message:'到期日期无效，请先联系管理员修正。' };
+        const feeCents = Math.round(monthlyDeltaCents * remainingDays / 30);
+        return {
+            ok:true,
+            newWindows: target,
+            newAmountCents,
+            feeCents: Number.isSafeInteger(feeCents) && feeCents >= 0 ? feeCents : 0,
+            message: ''
+        };
+    }
+    // 减窗口 >100：月费按新窗口数×100口基数比例折算，不退钱
+    const baseAmountCents = WINDOW_CHANGE_BASE_CENTS; // 100口月费
+    const newAmountCents = Math.round(baseAmountCents * target / 100);
+    return {
+        ok:true,
+        newWindows: target,
+        newAmountCents,
+        feeCents: 0,
+        message: ''
+    };
+}
+
 function parseWindowChangeInput(value, currentWindows) {
     const raw = String(value ?? '').trim();
     const current = Number(currentWindows);
@@ -814,7 +912,7 @@ function updateWindowChangePreview() {
     const currentWindows = Number(record?.windows);
     const change = parseWindowChangeInput(document.getElementById('windowChangeInput').value, currentWindows);
     if (!record || !change) {
-        preview.textContent = '请输入最终窗口数（如 150、50），或输入相对变化（如 +50、-50）。';
+        preview.textContent = '请输入最终窗口数（如 100、50、150），100 口以内只能填 50 或 100。';
         return;
     }
     const { targetWindows, delta } = change;
@@ -822,15 +920,9 @@ function updateWindowChangePreview() {
         preview.textContent = `当前已经是 ${currentWindows} 窗口，无需修改。`;
         return;
     }
-    const monthlyDeltaCents = windowChangeMonthlyDeltaCents(delta);
-    const currentAmountCents = recordMonthlyAmountCents(record, true);
-    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || targetWindows < 0 || currentAmountCents === null || monthlyDeltaCents === null) {
-        preview.textContent = '当前窗口数、金额或修改后的窗口数无效。';
-        return;
-    }
-    const newAmountCents = currentAmountCents + (delta > 0 ? monthlyDeltaCents : -monthlyDeltaCents);
-    if (newAmountCents < 0) {
-        preview.textContent = '修改后月费不能小于 0 元。';
+    const plan = windowChangePlan(record, targetWindows, delta);
+    if (!plan.ok) {
+        preview.textContent = plan.message;
         return;
     }
     if (delta > 0) {
@@ -843,15 +935,14 @@ function updateWindowChangePreview() {
             preview.textContent = '到期日当天或已过期，已无剩余计费天数，请先续费再增加窗口。';
             return;
         }
-        const feeCents = windowChangeFeeCents(delta, remainingDays);
-        if (!Number.isSafeInteger(feeCents) || feeCents < 1) {
-            preview.textContent = '本次增加窗口金额无效或低于最小支付金额，请联系管理员。';
+        if (!Number.isSafeInteger(plan.feeCents) || plan.feeCents < 1) {
+            preview.textContent = `${currentWindows} → ${targetWindows} 窗口；无需付款；新月费 ¥${formatMoneyCents(plan.newAmountCents)}`;
             return;
         }
-        preview.textContent = `${currentWindows} → ${targetWindows} 窗口；剩余 ${remainingDays} 天，本次支付 ¥${formatMoneyCents(feeCents)}；新月费 ¥${formatMoneyCents(newAmountCents)}`;
+        preview.textContent = `${currentWindows} → ${targetWindows} 窗口；剩余 ${remainingDays} 天，本次支付 ¥${formatMoneyCents(plan.feeCents)}；新月费 ¥${formatMoneyCents(plan.newAmountCents)}`;
         return;
     }
-    preview.textContent = `${currentWindows} → ${targetWindows} 窗口；无需付款、不退款；新月费 ¥${formatMoneyCents(newAmountCents)}`;
+    preview.textContent = `${currentWindows} → ${targetWindows} 窗口；无需付款、不退款；新月费 ¥${formatMoneyCents(plan.newAmountCents)}`;
 }
 
 async function confirmWindowChange() {
@@ -891,23 +982,21 @@ async function confirmWindowChange() {
         return alert(`检测到BitBrowser实际额度为 ${actualBeforePayment}，网页业务窗口为 ${currentWindows}，正在自动对账窗口和月费。请等待约10秒后再发起付款。`);
     }
     const change = parseWindowChangeInput(document.getElementById('windowChangeInput').value, currentWindows);
-    if (!change) return alert('请输入最终窗口数（如 150、50），或输入相对变化（如 +50、-50）。');
+    if (!change) return alert('请输入最终窗口数（如 100、50、150），100 口以内只能填 50 或 100。');
     const { targetWindows, delta } = change;
     if (delta === 0) return alert(`当前已经是 ${currentWindows} 窗口，无需修改。`);
-    const monthlyDeltaCents = windowChangeMonthlyDeltaCents(delta);
+    const plan = windowChangePlan(record, targetWindows, delta);
+    if (!plan.ok) return alert(plan.message);
     const currentAmountCents = recordMonthlyAmountCents(record, true);
-    if (!Number.isSafeInteger(currentWindows) || currentWindows < 0 || targetWindows < 0) return alert('修改后的窗口数必须是大于等于 0 的整数。');
-    if (currentAmountCents === null || monthlyDeltaCents === null) return alert('当前金额无效，请联系管理员修正。');
-    const newAmountCents = currentAmountCents + (delta > 0 ? monthlyDeltaCents : -monthlyDeltaCents);
-    if (newAmountCents < 0) return alert('修改后月费不能小于 0 元。');
+    if (currentAmountCents === null) return alert('当前金额无效，请联系管理员修正。');
     const remainingDays = delta > 0 ? remainingWindowServiceDays(record.expiry) : null;
     if (delta > 0 && remainingDays === null) return alert('当前到期日期无效，请先联系管理员修正。');
     if (delta > 0 && remainingDays === 0) return alert('到期日当天或已过期，已无剩余计费天数，请先续费再增加窗口。');
-    const feeCents = delta > 0 ? windowChangeFeeCents(delta, remainingDays) : 0;
-    if (delta > 0 && (!Number.isSafeInteger(feeCents) || feeCents < 1)) return alert('本次增加窗口金额低于最小支付金额，请联系管理员。');
+    const feeCents = delta > 0 ? plan.feeCents : 0;
     if (activeWindowChangeTask(record)) return alert('该员工号已有修改窗口任务未完成，请等待完成或先在联动状态中取消。');
 
-    if (delta > 0) {
+    // 增加窗口且需要付款
+    if (delta > 0 && feeCents > 0) {
         try {
             const pricingDate = getBeijingDateStr();
             const lock = await acquireWindowPaymentLock(record, {
@@ -915,7 +1004,7 @@ async function confirmWindowChange() {
                 targetWindows,
                 windowDelta: delta,
                 currentAmountCents,
-                newAmountCents,
+                newAmountCents: plan.newAmountCents,
                 feeCents,
                 expiry: String(record.expiry || '').trim(),
                 pricingDate,
@@ -947,8 +1036,9 @@ async function confirmWindowChange() {
         }
     }
 
+    // 免费加窗口（小强 50→100）或减少窗口：直接改库，不付款
     if (activeWindowPaymentLock(record)) {
-        return alert('该员工号已有付款订单进行中，付款完成或订单超时前不能减少窗口。');
+        return alert('该员工号已有付款订单进行中，付款完成或订单超时前不能修改窗口。');
     }
     closeWindowChangeModal();
 
@@ -956,14 +1046,14 @@ async function confirmWindowChange() {
         await enqueueBitJob(record, BIT_WINDOW_QUOTA_ACTION, newBitDedupeKey('window-quota', record, `${targetWindows}-${Date.now()}`), { targetWindowCount:targetWindows });
         record.windows = targetWindows;
         record.windowTarget = targetWindows;
-        record.amount = formatMoneyCents(newAmountCents);
-        recordOperationLog(record, 'window_reduce', { operatedAt:new Date().toISOString(), windows:targetWindows, amount:record.amount });
+        record.amount = formatMoneyCents(plan.newAmountCents);
+        recordOperationLog(record, delta > 0 ? 'window_add' : 'window_reduce', { operatedAt:new Date().toISOString(), windows:targetWindows, amount:record.amount });
         saveToCloud();
         render();
-        alert(`已提交减少窗口任务：${currentWindows} → ${targetWindows}，无需付款。`);
+        alert(`已提交${delta > 0 ? '增加' : '减少'}窗口任务：${currentWindows} → ${targetWindows}${delta > 0 ? '，无需付款' : '，无需付款、不退款'}。`);
         return true;
     } catch (error) {
-        alert(`减少窗口任务创建失败：\n${bitSetupMessage(error)}`);
+        alert(`${delta > 0 ? '增加' : '减少'}窗口任务创建失败：\n${bitSetupMessage(error)}`);
         return false;
     }
 }
@@ -2977,7 +3067,9 @@ function toggleStar(id) {
 async function activate(id) {
     const u = db.unused.find(x => x.id === id);
     if(!u) return false;
-    if (!(await showActionConfirm(`确定激活“${u.username}”？\n\n默认窗口数${DEFAULT_WINDOWS}\n需支付：¥${Number(DEFAULT_AMOUNT)}`, { title:'激活确认', confirmText:'确认并支付' }))) return false;
+    const quotaWin = Number(u.windows) === TIER_WINDOWS_LOW ? TIER_WINDOWS_LOW : TIER_WINDOWS_HIGH;
+    const quotaAmount = quotaWin === TIER_WINDOWS_LOW ? ACTIVATION_AMOUNT_50 : ACTIVATION_AMOUNT_100;
+    if (!(await showActionConfirm(`确定激活“${u.username}”？\n\n窗口数${quotaWin}\n需支付：¥${quotaAmount}`, { title:'激活确认', confirmText:'确认并支付' }))) return false;
     const operationClickedAt = new Date().toISOString();
     if (!(await ensureCloudInitializedForAction())) return false;
 
@@ -3081,7 +3173,7 @@ async function activate(id) {
     const eday = String(d.getUTCDate()).padStart(2, '0');
 
     newlyActivatedId = id;
-    const activatedUser = { id: id, username: slot.username, password: slot.password, owner: DEFAULT_OWNER, wechat: '-', xianyu: '-', amount: DEFAULT_AMOUNT, windows: DEFAULT_WINDOWS, activeTime, expiry: `${ey}-${em}-${eday}`, isStarred: false };
+    const activatedUser = { id: id, username: slot.username, password: slot.password, owner: DEFAULT_OWNER, wechat: '-', xianyu: '-', amount: String(quotaAmount), windows: String(quotaWin), activeTime, expiry: `${ey}-${em}-${eday}`, isStarred: false };
     db.users.push(activatedUser);
     db.unused = db.unused.filter(x => x.id !== id);
     recordOperationLog(activatedUser, 'activate', paidLogDetails(payment, { operatedAt: operationClickedAt, expiryAfter: activatedUser.expiry }));
