@@ -281,12 +281,7 @@
 
 <div class="stats-bar" id="statsBar"></div>
 
-<div class="unused-container">
-  <div class="unused-box">
-    <div style="font-size: 11px; color: var(--unused); font-weight: bold;">🔑 待激活名额</div>
-    <div class="unused-list" id="unusedGrid"></div>
-  </div>
-</div>
+<div class="unused-container" id="unusedContainer"></div>
 
 <main class="main-content">
   <div class="table-wrap">
@@ -398,7 +393,7 @@
 <div class="modal-overlay" id="multiUnusedModal">
   <div class="modal">
     <h3 style="font-size:14px; margin-bottom:10px; color:var(--unused)">批量新增名额</h3>
-    <textarea id="multiUnusedInput" style="width:100%; height:180px; background:#000; border:1px solid var(--border); color:#fff; padding:10px; font-size:12px" placeholder="用户名 密码 (一行一个)"></textarea>
+    <textarea id="multiUnusedInput" style="width:100%; height:180px; background:#000; border:1px solid var(--border); color:#fff; padding:10px; font-size:12px" placeholder="用户名 密码 窗口数 (一行一个，窗口数填 50 或 100，不填默认 100)"></textarea>
     <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:15px">
       <button class="btn btn-ghost" onclick="closeModal('multiUnusedModal')">取消</button>
       <button class="btn btn-secondary" onclick="confirmMultiUnused()" style="background:var(--unused)">确认添加</button>
@@ -3424,10 +3419,30 @@ function renderStatsBar() {
     document.getElementById('statsBar').innerHTML = Object.keys(labels).map(k => `<div class="stat-card ${currentFilter===k?'active':''}" onclick="currentFilter='${k}';render()"><div class="stat-label">${labels[k]}</div><div class="stat-value" style="color:var(--${k==='all'?'accent':k})">${s[k]}</div></div>`).join('');
 }
 
+function unusedWindows(u) {
+    const w = Number(u && (u.windows ?? 0));
+    return Number.isFinite(w) && w > 0 ? w : Number(TIER_WINDOWS_HIGH || 100);
+}
+
 function renderUnusedGrid() {
-    document.getElementById('unusedGrid').innerHTML = db.unused.map(u => {
-        const username = escapeHtml(displayVal(u.username));
-        return `<div class="unused-item"><span>${username}</span><button class="btn btn-primary" style="height:18px; font-size:9px" onclick="activate('${u.id}')">激活</button></div>`;
+    const container = document.getElementById('unusedContainer');
+    if (!container) return;
+    const groups = new Map();
+    db.unused.forEach(u => {
+        const w = unusedWindows(u);
+        if (!groups.has(w)) groups.set(w, []);
+        groups.get(w).push(u);
+    });
+    const keys = Array.from(groups.keys()).sort((a, b) => b - a);
+    container.innerHTML = keys.map(w => {
+        const items = groups.get(w).map(u => {
+            const username = escapeHtml(displayVal(u.username));
+            return `<div class="unused-item"><span>${username}</span><button class="btn" style="height:18px; font-size:9px; background-color: #2ed573; color: #000000; border: none; font-weight: bold;" onclick="activate('${u.id}')">激活</button></div>`;
+        }).join('');
+        return `<div class="unused-box">
+      <div style="font-size: 11px; color: var(--unused); font-weight: bold;">🔑 待激活名额（${w}窗口）</div>
+      <div class="unused-list">${items}</div>
+    </div>`;
     }).join('');
 }
 
@@ -3793,6 +3808,7 @@ async function confirmMultiUnused() {
     const rawInput = document.getElementById('multiUnusedInput').value;
     const lines = rawInput.split('\n').filter(line => line.trim());
     const duplicates = [];
+    const badWindows = [];
     const toAdd = [];
     const seenInInput = new Set();
     lines.forEach(line => {
@@ -3801,13 +3817,22 @@ async function confirmMultiUnused() {
         if (!uname) return;
         if (!isUsernameUnique(uname) || seenInInput.has(uname.toLowerCase())) {
             duplicates.push(uname);
-        } else {
-            seenInInput.add(uname.toLowerCase());
-            toAdd.push({ id: 'un_'+Date.now()+Math.random(), username: uname, password: p[1]||DEFAULT_PWD });
+            return;
         }
+        const winRaw = (p[2] !== undefined && p[2] !== '') ? String(p[2]).trim() : String(DEFAULT_WINDOWS);
+        if (!/^(50|100)$/.test(winRaw)) {
+            badWindows.push(uname + '：窗口数 ' + winRaw);
+            return;
+        }
+        seenInInput.add(uname.toLowerCase());
+        toAdd.push({ id: 'un_'+Date.now()+Math.random(), username: uname, password: p[1]||DEFAULT_PWD, windows: winRaw });
     });
     if (duplicates.length > 0) {
         alert(`❌ 以下 ${duplicates.length} 个用户名已存在，全部操作已中止，请修正后重新提交：\n\n${duplicates.join('\n')}`);
+        return;
+    }
+    if (badWindows.length > 0) {
+        alert(`❌ 以下 ${badWindows.length} 条窗口数不是 50 或 100，全部操作已中止，请修正后重新提交：\n\n${badWindows.join('\n')}`);
         return;
     }
     try {
