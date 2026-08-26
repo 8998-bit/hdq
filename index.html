@@ -1626,7 +1626,7 @@ function collectRecordBitTasks() {
                 changed = rememberBitTask({
                     id: ref.id,
                     username: record.username,
-                    sourceOwner: String(record.owner || ''),
+                    sourceOwner: String((typeof DEFAULT_OWNER !== 'undefined' && DEFAULT_OWNER) || record.owner || ''),
                     action: ref.action,
                     status: ref.status || 'pending',
                     last_error: ref.message || '',
@@ -1743,7 +1743,7 @@ async function enqueueBitJob(record, action, dedupeKey, options = {}) {
         id: newBitId(),
         dedupeKey,
         sourceRecordId: String(record.id),
-        sourceOwner: String(record.owner || ''),
+        sourceOwner: String((typeof DEFAULT_OWNER !== 'undefined' && DEFAULT_OWNER) || record.owner || ''),
         username: String(record.username).trim(),
         action,
         status: 'routing_required',
@@ -2425,6 +2425,9 @@ async function refreshBitLinkData() {
     await syncFromCloud(false);
     await syncConnectors(false);
     rebuildActiveConnectors();
+    if (typeof loadBitTasksFromCloud === 'function') {
+        await loadBitTasksFromCloud(true);
+    }
     renderBitIntegration();
 }
 
