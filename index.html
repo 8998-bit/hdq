@@ -266,7 +266,7 @@
 
 <header class="header">
   <div style="display:flex; align-items:center">
-    <div class="logo">⚡ 小强</div>
+    <div class="logo">小强 <span style="font-size:0.7em;opacity:0.75">v0.0.1</span></div>
     <span class="sync-info" id="syncStatus">连接中...</span>
   </div>
   <div style="display:flex; gap:8px;">
@@ -451,7 +451,7 @@
 
 <script>
 // ================== 核心配置 ==================
-const SUPABASE_URL = 'https://xlmnfzocrlqvbzzrdshr.supabase.co'; 
+const SUPABASE_URL = 'https://xlmnfzocrlqvbzzrdshr.supabase.co';const APP_VERSION = '0.0.1'; // 🏷 版本号：改版本时递增（左上角显示） 
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbW5mem9jcmxxdmJ6enJkc2hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODMyMjAsImV4cCI6MjA5MDU1OTIyMH0.Pvhl7JTz-FmOZ6J_aT8kBRve3ZrjOIIVVekr4jTZXUM';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const STORAGE_KEY = 'uf_v45_db';
@@ -3252,6 +3252,11 @@ async function permanentlyDelete(id) {
     showLoading(true, { blocking: false });
     try {
         await enqueueBitJob(record, 'delete', newBitDedupeKey('delete', record));
+        // P3-C: 物理删除 app_users 记录（防止刷新后回收站复活）
+        try {
+            const { error: delErr } = await supabaseClient.from('app_users').delete().eq('id', String(id));
+            if (delErr) console.warn('[删除] app_users 物理删除失败:', delErr.message);
+        } catch (e) { console.warn('[删除] app_users 删除异常:', e.message); }
         db.trash = db.trash.filter(u => u.id !== id);
         saveToCloud();
         renderTrash();
