@@ -3252,11 +3252,11 @@ async function permanentlyDelete(id) {
     showLoading(true, { blocking: false });
     try {
         await enqueueBitJob(record, 'delete', newBitDedupeKey('delete', record));
-        // P3-C: 物理删除 app_users 记录（防止刷新后回收站复活）
+        // P3-C: 物理删除 app_users（走 security definer RPC，绕开 anon 表级 DELETE 权限问题）
         try {
-            const { error: delErr } = await supabaseClient.from('app_users').delete().eq('id', String(id));
-            if (delErr) console.warn('[删除] app_users 物理删除失败:', delErr.message);
-        } catch (e) { console.warn('[删除] app_users 删除异常:', e.message); }
+            const { error: delErr } = await supabaseClient.rpc('delete_user_anon', { p_user_id: String(id) });
+            if (delErr) console.warn('[删除] delete_user_anon 失败:', delErr.message);
+        } catch (e) { console.warn('[删除] delete_user_anon 异常:', e.message); }
         db.trash = db.trash.filter(u => u.id !== id);
         saveToCloud();
         renderTrash();
