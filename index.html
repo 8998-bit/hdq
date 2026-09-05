@@ -75,7 +75,7 @@
   .trash-drawer { position: fixed; right: -900px; top: 0; width: 900px; max-width: 92vw; height: 100%; background: var(--surface); border-left: 1px solid var(--border); transition: 0.3s; z-index: 101; padding: 22px; box-shadow: -10px 0 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; }
   .trash-drawer.open { right: 0; }
   .trash-list-wrap { flex: 1; overflow-y: auto; margin-top: 10px; }
-  .trash-row { display: grid; grid-template-columns: 34px minmax(70px,1fr) minmax(110px,1.55fr) minmax(90px,1fr) minmax(95px,1fr) minmax(90px,1fr) minmax(80px,1fr) minmax(90px,1fr) minmax(70px,.8fr) minmax(90px,1fr) minmax(150px,1.4fr); align-items: center; background: var(--surface2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; gap: 10px; }
+  .trash-row { display: grid; grid-template-columns: 34px 1fr 1.55fr 1fr 1fr 1fr 0.8fr 78px 150px; align-items: center; background: var(--surface2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; gap: 10px; }
   .trash-header { display: grid; grid-template-columns: 34px minmax(70px,1fr) minmax(110px,1.55fr) minmax(90px,1fr) minmax(95px,1fr) minmax(90px,1fr) minmax(80px,1fr) minmax(90px,1fr) minmax(70px,.8fr) minmax(90px,1fr) minmax(150px,1.4fr); padding: 0 14px 9px 14px; color: #90ee90; font-size: 11px; gap: 10px; }
   .trash-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trash-status { display:flex; align-items:center; justify-content:center; min-width:0; }
@@ -266,7 +266,7 @@
 
 <header class="header">
   <div style="display:flex; align-items:center">
-    <div class="logo">小强 <span style="font-size:0.7em;opacity:0.75">v0.0.2</span></div>
+    <div class="logo">小强 <span style="font-size:0.7em;opacity:0.75">v0.0.1</span></div>
     <span class="sync-info" id="syncStatus">连接中...</span>
   </div>
   <div style="display:flex; gap:8px;">
@@ -342,7 +342,7 @@
     <input type="text" id="trashSearchInput" style="width:100%; background:#000; border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:11px; padding:5px 8px; box-sizing:border-box; outline:none;" placeholder="🔍 全局搜索：用户 / 微信 / 咸鱼 / 备注 / 归属..." oninput="onTrashSearchInput()">
   </div>
   <div class="trash-header">
-    <div></div><div class="trash-col-owner">归属</div><div class="trash-col-user">用户/<span id="trashUserCount">0</span></div><div class="trash-col-lastopen">最后打开</div><div class="trash-col-win">窗口数</div><div class="trash-col-wechat">微信</div><div class="trash-col-xianyu">咸鱼</div><div class="trash-col-expiry">到期(月日)</div><div class="trash-col-amount">金额</div><div style="text-align:center">状态</div><div class="trash-col-actions-label">操作</div>
+    <div></div><div class="trash-col-owner">归属</div><div class="trash-col-user">用户/<span id="trashUserCount">0</span></div><div class="trash-col-wechat">微信</div><div class="trash-col-xianyu">咸鱼</div><div class="trash-col-expiry">到期(月日)</div><div class="trash-col-amount">金额</div><div style="text-align:center">状态</div><div class="trash-col-actions-label">操作</div>
   </div>
   <div class="trash-list-wrap" id="trashList"></div>
 </div>
@@ -451,7 +451,7 @@
 
 <script>
 // ================== 核心配置 ==================
-const SUPABASE_URL = 'https://xlmnfzocrlqvbzzrdshr.supabase.co';const APP_VERSION = '0.0.2'; // 🏷 版本号：改版本时递增（左上角显示） 
+const SUPABASE_URL = 'https://xlmnfzocrlqvbzzrdshr.supabase.co';const APP_VERSION = '0.0.1'; // 🏷 版本号：改版本时递增（左上角显示） 
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhsbW5mem9jcmxxdmJ6enJkc2hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5ODMyMjAsImV4cCI6MjA5MDU1OTIyMH0.Pvhl7JTz-FmOZ6J_aT8kBRve3ZrjOIIVVekr4jTZXUM';
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const STORAGE_KEY = 'uf_v45_db';
@@ -2870,11 +2870,11 @@ function render(forceSort = false) {
         const expiry = escapeHtml(displayVal(u.expiry));
         const amount = escapeHtml(cleanAmount(withDefault(u.amount, DEFAULT_AMOUNT)));
         const bitBadge = bitBadgeForRecord(u);
-        const usedWin = (u.bitExistingWindows != null && u.bitExistingWindows !== '') ? Number(u.bitExistingWindows) : null;
-        const availWin = (u.bitWindowQuota != null && u.bitWindowQuota !== '') ? Number(u.bitWindowQuota) : null;
-        const winShow = (usedWin != null) ? `${usedWin}/${availWin ?? '-'}` : (availWin != null ? `0/${availWin}` : '-');
-        const lastOpenRaw = u.bitWindowQuotaUpdatedAt || u.updatedAt || '';
-        const lastOpen = lastOpenRaw ? String(lastOpenRaw).replace('T', ' ').slice(0, 16) : '-';
+
+
+
+
+
         
         tr.innerHTML = `
             <td>
@@ -2966,13 +2966,12 @@ function renderTrash() {
             <input type="checkbox" class="trash-cb" value="${u.id}">
             <div class="trash-val trash-col-owner" title="${owner}">${owner}</div>
             <div class="trash-val trash-col-user" title="${username}"><b>${username}</b></div>
-            <div class="trash-val trash-col-lastopen" title="${lastOpen}">${lastOpen}</div>
-            <div class="trash-val trash-col-win" title="${winShow}">${winShow}</div>
+
             <div class="trash-val trash-col-wechat" title="${wechat}">${wechat}</div>
             <div class="trash-val trash-col-xianyu" title="${xianyu}">${xianyu}</div>
             <div class="trash-val trash-col-expiry" style="color:var(--accent)">${expiryShort}</div>
             <div class="trash-val trash-col-amount">¥${amount}</div>
-            <div class="trash-status"><span style="color:var(--unused)">已停用</span></div>
+            <div class="trash-status">${bitBadge || '-'}</div>
             <div class="trash-actions" style="display:flex; gap:4px">
                 <button class="btn btn-sm" style="padding:2px 6px; background:var(--warning); color:#000" onclick="rollbackTrashUser('${u.id}')">回退</button>
                 <button class="btn btn-success btn-sm" style="padding:2px 6px" onclick="restore('${u.id}')">续费</button>
