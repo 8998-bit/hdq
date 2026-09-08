@@ -72,11 +72,12 @@
   .star-btn { cursor: pointer; font-size: 16px; color: var(--text3); transition: 0.2s; margin-right: 5px; vertical-align: middle; }
   .star-btn.active { color: var(--warning); text-shadow: 0 0 8px rgba(255,165,2,0.5); }
 
-  .trash-drawer { position: fixed; right: -900px; top: 0; width: 900px; max-width: 92vw; height: 100%; background: var(--surface); border-left: 1px solid var(--border); transition: 0.3s; z-index: 101; padding: 22px; box-shadow: -10px 0 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; }
+  .trash-drawer { position: fixed; right: -980px; top: 0; width: 980px; max-width: 94vw; height: 100%; background: var(--surface); border-left: 1px solid var(--border); transition: 0.3s; z-index: 101; padding: 22px; box-shadow: -10px 0 30px rgba(0,0,0,0.8); display: flex; flex-direction: column; }
   .trash-drawer.open { right: 0; }
-  .trash-list-wrap { flex: 1; overflow-y: auto; margin-top: 10px; }
-  .trash-row { display: grid; grid-template-columns: 34px 1fr 1.55fr 1fr 1fr 1fr 0.8fr 78px 150px; align-items: center; background: var(--surface2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; gap: 10px; }
-  .trash-header { display: grid; grid-template-columns: 34px minmax(70px,1fr) minmax(110px,1.55fr) minmax(90px,1fr) minmax(95px,1fr) minmax(90px,1fr) minmax(80px,1fr) minmax(90px,1fr) minmax(70px,.8fr) minmax(90px,1fr) minmax(150px,1.4fr); padding: 0 14px 9px 14px; color: #90ee90; font-size: 11px; gap: 10px; }
+  .trash-list-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; margin-top: 10px; }
+  .trash-row, .trash-header { display: grid; grid-template-columns: 34px minmax(58px,.8fr) minmax(100px,1.3fr) minmax(68px,.75fr) minmax(80px,.9fr) minmax(80px,.9fr) minmax(78px,.85fr) minmax(64px,.7fr) minmax(80px,.85fr) minmax(130px,1.2fr); gap: 10px; }
+  .trash-row { align-items: center; background: var(--surface2); border: 1px solid var(--border); padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; font-size: 12px; }
+  .trash-header { padding: 0 14px 9px 14px; color: #90ee90; font-size: 11px; }
   .trash-val { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .trash-status { display:flex; align-items:center; justify-content:center; min-width:0; }
   .trash-status .bit-badge, .task-cell .bit-badge { margin-top:0; }
@@ -199,7 +200,7 @@
       font-size:10px;
       align-items:center;
     }
-    .trash-cb { grid-column:1; grid-row:1 / span 2; margin-top:0; align-self:center; }
+    .trash-cb { grid-column:1; grid-row:1 / span 3; margin-top:0; align-self:center; }
     .trash-col-user {
       grid-column:2;
       grid-row:1;
@@ -210,13 +211,14 @@
       word-break:normal;
       line-height:1.25;
     }
-    .trash-col-expiry { grid-column:3; grid-row:1; }
-    .trash-col-amount { grid-column:4; grid-row:1; }
+    .trash-col-window { grid-column:3; grid-row:1; }
+    .trash-col-expiry { grid-column:4; grid-row:1; }
+    .trash-col-amount { grid-column:4; grid-row:2; }
     .trash-col-owner { grid-column:2; grid-row:2; }
     .trash-col-wechat { grid-column:3; grid-row:2; }
-    .trash-col-xianyu { grid-column:4; grid-row:2; }
+    .trash-col-xianyu { grid-column:2 / span 3; grid-row:3; }
     .trash-col-owner, .trash-col-wechat, .trash-col-xianyu,
-    .trash-col-expiry, .trash-col-amount {
+    .trash-col-window, .trash-col-expiry, .trash-col-amount {
       display:block;
       white-space:nowrap;
       overflow:hidden;
@@ -226,11 +228,12 @@
     }
     .trash-col-user::before { content:'账号:'; }
     .trash-col-owner::before { content:'归属:'; }
+    .trash-col-window::before { content:'窗口:'; }
     .trash-col-wechat::before { content:'微信:'; }
     .trash-col-xianyu::before { content:'咸鱼:'; }
     .trash-col-expiry::before { content:'到期:'; }
     .trash-col-amount::before { content:'金额:'; }
-    .trash-col-user::before, .trash-col-owner::before, .trash-col-wechat::before,
+    .trash-col-user::before, .trash-col-owner::before, .trash-col-window::before, .trash-col-wechat::before,
     .trash-col-xianyu::before, .trash-col-expiry::before, .trash-col-amount::before {
       color:#90ee90;
       font-size:9px;
@@ -342,7 +345,7 @@
     <input type="text" id="trashSearchInput" style="width:100%; background:#000; border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:11px; padding:5px 8px; box-sizing:border-box; outline:none;" placeholder="🔍 全局搜索：用户 / 微信 / 咸鱼 / 备注 / 归属..." oninput="onTrashSearchInput()">
   </div>
   <div class="trash-header">
-    <div></div><div class="trash-col-owner">归属</div><div class="trash-col-user">用户/<span id="trashUserCount">0</span></div><div class="trash-col-wechat">微信</div><div class="trash-col-xianyu">咸鱼</div><div class="trash-col-expiry">到期(月日)</div><div class="trash-col-amount">金额</div><div style="text-align:center">状态</div><div class="trash-col-actions-label">操作</div>
+    <div></div><div class="trash-col-owner">归属</div><div class="trash-col-user">用户/<span id="trashUserCount">0</span></div><div class="trash-col-window">窗口</div><div class="trash-col-wechat">微信</div><div class="trash-col-xianyu">咸鱼</div><div class="trash-col-expiry">到期(月日)</div><div class="trash-col-amount">金额</div><div style="text-align:center">状态</div><div class="trash-col-actions-label">操作</div>
   </div>
   <div class="trash-list-wrap" id="trashList"></div>
 </div>
@@ -1816,6 +1819,18 @@ ${bitSetupMessage(error)}`);
     }
 }
 
+const DELETE_IN_PROGRESS_STATUSES = new Set(['routing_required', 'pending', 'processing', 'retry_wait', 'execution_succeeded', 'writeback_pending']);
+
+function formatBitWindowUsage(record) {
+    const used = Number(record?.bitExistingWindows);
+    const quota = Number(record?.bitWindowQuota);
+    if (Number.isFinite(used) && Number.isFinite(quota) && quota > 0) {
+        return `${Math.round(used)}/${Math.round(quota)}`;
+    }
+    const fallback = record?.windows;
+    return fallback === null || fallback === undefined || String(fallback).trim() === '' ? '-' : String(fallback);
+}
+
 function bitBadgeForRecord(record) {
     const paymentLock = activeWindowPaymentLock(record);
     if (paymentLock) {
@@ -1829,9 +1844,12 @@ function bitBadgeForRecord(record) {
     const jobId = useWindowTask ? record.windowJobId : record.bitJobId;
     if (!jobId) return '';
     const status = String(useWindowTask ? record.windowSyncStatus : record.bitSyncStatus || '');
+    const act = String(useWindowTask ? record.windowSyncAction : record.bitSyncAction || '');
+    const isDeleting = act === 'delete' && DELETE_IN_PROGRESS_STATUSES.has(status);
     const message = useWindowTask ? record.windowSyncMessage : record.bitSyncMessage;
     const prefix = useWindowTask ? '🪟 ' : '🔗 ';
-    return `<span class="bit-badge ${escapeHtml(status)}" title="${escapeHtml(message || '')}">${prefix}${escapeHtml(BIT_STATUS_LABELS[status] || status || '待同步')}</span>`;
+    const label = isDeleting ? '正在删除' : (BIT_STATUS_LABELS[status] || status || '待同步');
+    return `<span class="bit-badge ${escapeHtml(status)}" title="${escapeHtml(message || '')}">${prefix}${escapeHtml(label)}</span>`;
 }
 
 function renderBitIntegration() {
@@ -2957,6 +2975,7 @@ function renderTrash() {
     list.innerHTML = filtered.map(u => {
         const owner = escapeHtml(displayVal(u.owner));
         const username = escapeHtml(displayVal(u.username));
+        const windowUsage = escapeHtml(formatBitWindowUsage(u));
         const wechat = escapeHtml(displayVal(u.wechat));
         const xianyu = escapeHtml(displayVal(u.xianyu));
         const expiryShort = escapeHtml(formatShortDate(u.expiry));
@@ -2967,7 +2986,7 @@ function renderTrash() {
             <input type="checkbox" class="trash-cb" value="${u.id}">
             <div class="trash-val trash-col-owner" title="${owner}">${owner}</div>
             <div class="trash-val trash-col-user" title="${username}"><b>${username}</b></div>
-
+            <div class="trash-val trash-col-window" title="${windowUsage}">${windowUsage}</div>
             <div class="trash-val trash-col-wechat" title="${wechat}">${wechat}</div>
             <div class="trash-val trash-col-xianyu" title="${xianyu}">${xianyu}</div>
             <div class="trash-val trash-col-expiry" style="color:var(--accent)">${expiryShort}</div>
