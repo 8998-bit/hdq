@@ -3255,17 +3255,27 @@ async function moveUserToTrash(id, opts = {}) {
 }
 
 async function rollbackUser(id, opts = {}) {
-    const idx = db.users.findIndex(u => u.id === id);
-    const needConfirm = !opts.skipConfirm;
-    if (idx > -1 && activeWindowPaymentLock(db.users[idx])) {
+    const u = db.users.find(item => String(item.id) === String(id));
+    if (!u) return false;
+    if (activeWindowPaymentLock(u)) {
         if (!opts.noRender) alert('该员工号已有窗口付款订单进行中，完成或超时前不能回退名额。');
         return false;
     }
-    if(idx > -1 && (needConfirm ? await showActionConfirm("回退到名额列表？", { title:'回退确认', confirmText:'确认回退' }) : true)) {
-        const u = db.users.splice(idx, 1)[0];
-        db.unused.push({ id: u.id, username: u.username, password: u.password || DEFAULT_PWD });
-        if (!opts.noSave) saveToCloud();
+    if (!opts.skipConfirm && !(await showActionConfirm('回退到名额列表？', { title:'回退确认', confirmText:'确认回退' }))) return false;
+    if (!opts.noRender) showLoading(true, { blocking: false });
+    try {
+        await rollbackActivatedUserInCloud(u);
         if (!opts.noRender) render();
+        return true;
+    } catch (error) {
+        if (!opts.noRender) {
+            alert('回退失败：\n' + (error.message || error));
+            await syncFromCloud(true);
+            render();
+        }
+        return false;
+    } finally {
+        if (!opts.noRender) showLoading(false);
     }
 }
 
@@ -3539,12 +3549,17 @@ async function batchAction(type) {
         if (errors.length) alert(`有 ${errors.length} 个账号未能移入回收站：\n\n${errors.join('\n')}`);
     }
     if (type === 'rollback') {
-        if (!(await showActionConfirm("批量回退？", { title:'批量回退确认', confirmText:'确认回退' }))) return;
-        const locked = ids.map(id => db.users.find(item => item.id === id)).filter(record => record && activeWindowPaymentLock(record));
-        ids.filter(id => !locked.some(record => String(record.id) === String(id)))
-            .forEach(id => rollbackUser(id, { skipConfirm: true, noSave: true, noRender: true }));
-        saveToCloud();
-        if (locked.length) alert(`以下员工号存在窗口付款订单，已跳过回退：\n\n${locked.map(record => record.username).join('\n')}`);
+        if (!(await showActionConfirm('批量回退？', { title:'批量回退确认', confirmText:'确认回退' }))) return;
+        showLoading(true, { blocking: false });
+        const failed = [];
+        for (const id of ids) {
+            const record = db.users.find(item => String(item.id) === String(id));
+            if (!record) continue;
+            const ok = await rollbackUser(id, { skipConfirm: true, noSave: true, noRender: true });
+            if (!ok) failed.push(record.username || id);
+        }
+        showLoading(false);
+        if (failed.length) alert('以下员工号未能回退，请刷新后逐个重试：\n\n' + failed.join('\n'));
     }
     cancelSelect();
     render();
@@ -3874,10 +3889,18 @@ function showLoading(s, options = {}) {
 
 
 
+
+
+
+
+
+
+
+
 /* FRONTEND_V2_RUNTIME_START */
 (function installFrontendV2Runtime() {
     'use strict';
-    const schemaVersion = '2026-09-09.2';
+    const schemaVersion = '2026-09-09.4';
     const usersCursorKey = STORAGE_KEY + ':usersCursor';
     const tasksCursorKey = STORAGE_KEY + ':tasksCursor';
     const schemaKey = STORAGE_KEY + ':runtimeSchema';
@@ -3921,6 +3944,12 @@ function showLoading(s, options = {}) {
         return createdDelta || String(a?.id || '').localeCompare(String(b?.id || ''));
     };
     globalThis.bitTaskStableCompare = taskStableCompare;
+    const pageOwner = () => {
+        if (typeof TARGET_ORG !== 'undefined' && TARGET_ORG) return String(TARGET_ORG);
+        if (typeof DEFAULT_OWNER !== 'undefined' && DEFAULT_OWNER) return String(DEFAULT_OWNER);
+        return '';
+    };
+    const isMainPage = () => !pageOwner();
     const deleteInProgressStatuses = new Set([
         'routing_required', 'pending', 'processing', 'retry_wait',
         'execution_succeeded', 'writeback_pending'
@@ -3936,11 +3965,14 @@ function showLoading(s, options = {}) {
         if (deleting) {
             return '<span class="bit-badge processing" title="删除任务正在执行">正在删除</span>';
         }
+        if (isMainPage() && record?.bitEmployeePresent === false) {
+            return '<span class="bit-badge missing" title="BitBrowser 员工目录中未找到此员工号">未找到此员工</span>';
+        }
         if (record?.bitEmployeeEnabled === true) {
             return '<span class="bit-badge success" title="BitBrowser 员工号状态">已启用</span>';
         }
         if (record?.bitEmployeeEnabled === false) {
-            return '<span class="bit-badge success" title="BitBrowser 员工号状态">已停用</span>';
+            return '<span class="bit-badge needs_attention" title="BitBrowser 员工号状态">已停用</span>';
         }
         return '';
     };
@@ -3969,12 +4001,6 @@ function showLoading(s, options = {}) {
         const value = Number(localStorage.getItem(key) || 0);
         return Number.isSafeInteger(value) && value >= 0 ? value : 0;
     };
-    const pageOwner = () => {
-        if (typeof TARGET_ORG !== 'undefined' && TARGET_ORG) return String(TARGET_ORG);
-        if (typeof DEFAULT_OWNER !== 'undefined' && DEFAULT_OWNER) return String(DEFAULT_OWNER);
-        return '';
-    };
-    const isMainPage = () => !pageOwner();
     const allBuckets = state => [state.users || [], state.unused || [], state.trash || []];
     const findRecord = id => allBuckets(db).flat().find(row => String(row.id) === String(id));
     const bucketName = (state, id) => {
@@ -4020,6 +4046,8 @@ function showLoading(s, options = {}) {
         USER_STATE_CONFLICT: '账号已被其他页面修改，请刷新后重试。',
         SLOT_NOT_UNUSED: '该待激活名额已被使用，请刷新页面。',
         SLOT_BLOCKED: '该名额仍有关联任务，暂时不能激活。',
+        USER_NOT_ACTIVE: '该账号已经不在启用列表，请刷新后重试。',
+        INVALID_ACTIVATION_ROLLBACK: '回退参数已失效，请刷新后重试。',
         USER_NOT_FOUND: '云端找不到该账号。',
         INVALID_USER_CHANGE: '本次修改包含不允许的字段。',
         INVALID_MANUAL_DELETE_CONFIRMATION: '手工删除确认参数不完整，请刷新后重试。',
@@ -4064,6 +4092,7 @@ function showLoading(s, options = {}) {
             bitExistingWindows: row.bitExistingWindows ?? row.bit_existing_windows ?? null,
             bitWindowQuotaUpdatedAt: row.bitWindowQuotaUpdatedAt ?? row.bit_window_quota_updated_at ?? null,
             bitEmployeeEnabled: row.bitEmployeeEnabled ?? row.bit_employee_enabled ?? null,
+            bitEmployeePresent: row.bitEmployeePresent ?? row.bit_employee_present ?? null,
             bitEmployeeStatusUpdatedAt: row.bitEmployeeStatusUpdatedAt ?? row.bit_employee_status_updated_at ?? null,
             billingRevision: row.billingRevision ?? row.billing_revision ?? 0,
             billingUpdatedAt: row.billingUpdatedAt ?? row.billing_updated_at ?? null,
@@ -4473,6 +4502,23 @@ function showLoading(s, options = {}) {
         baseSnapshot = snapshotMainData();
         persistLocal();
         return findRecord(slot.id) || activatedUser;
+    };
+
+    globalThis.rollbackActivatedUserInCloud = async record => {
+        const data = await callRpc('rollback_activation_v2', {
+            p_user_id: String(record?.id || ''),
+            p_expected_updated_at: record?.updatedAt || record?.updated_at || null
+        });
+        if (!data?.ok) {
+            if (data?.user) applyUserRow(data.user);
+            const error = new Error(taskErrorText(data?.code || 'ACTIVATION_ROLLBACK_FAILED'));
+            error.code = data?.code || 'ACTIVATION_ROLLBACK_FAILED';
+            throw error;
+        }
+        applyUserRow(data.user || { ...record, status: 'unused' });
+        baseSnapshot = snapshotMainData();
+        persistLocal();
+        return findRecord(record.id);
     };
 
     globalThis.renewUserInCloud = async (record, targetExpiry, originalExpiry = null) => {
