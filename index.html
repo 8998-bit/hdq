@@ -425,6 +425,7 @@
     <div class="bit-job-toolbar">
       <div class="bit-job-title">最近联动任务 <span class="bit-job-count" id="bitJobSearchCount"></span></div>
       <div class="bit-job-toolbar-actions">
+        <button class="btn btn-ghost btn-sm" id="clearBitTaskLogsButton" style="color:var(--danger); border-color:var(--danger);" onclick="clearBitTaskLogs()">清空任务日志</button>
         <input type="text" id="bitJobSearchInput" class="bit-job-search" placeholder="🔍 全局搜索：员工号 / 微信 / 动作 / 日期 / 结果..." autocomplete="off" oninput="renderBitIntegration()">
       </div>
     </div>
@@ -1042,6 +1043,7 @@ function getStatus(dateStr) {
 const BIT_PENDING_STATUSES = new Set(['routing_required', 'pending', 'processing', 'retry_wait', 'execution_succeeded', 'writeback_pending']);
 const BIT_SUPERSEDABLE_STATUSES = new Set(['routing_required', 'pending']);
 const BIT_CANCELLABLE_STATUSES = new Set(['routing_required', 'pending']);
+const BIT_LOG_STATUSES = new Set(['success', 'resolved', 'cancelled']);
 const BIT_WINDOW_QUOTA_ACTION = 'set_window_quota';
 const BIT_STATUS_LABELS = {
     routing_required: '等待前缀路由', pending: '待执行', processing: '执行中', retry_wait: '等待重试',
@@ -1859,6 +1861,7 @@ function renderBitIntegration() {
     const jobList = document.getElementById('bitJobList');
     const jobSearchInput = document.getElementById('bitJobSearchInput');
     const jobSearchCount = document.getElementById('bitJobSearchCount');
+    const clearLogsButton = document.getElementById('clearBitTaskLogsButton');
     if (!button || !summary || !routeList || !jobList) return;
 
     const tasks = [...(db.bitTasks || []).filter(task => isTaskInOwnerScope(task))].sort(bitTaskStableCompare
@@ -1889,7 +1892,12 @@ function renderBitIntegration() {
     }
     const pending = tasks.filter(task => BIT_PENDING_STATUSES.has(task.status)).length;
     const attention = tasks.filter(task => task.status === 'needs_attention').length;
+    const clearable = tasks.filter(task => BIT_LOG_STATUSES.has(String(task.status || ''))).length;
     const online = bitConnectorRoutes.filter(route => route.online).length;
+    if (clearLogsButton) {
+        clearLogsButton.disabled = clearable === 0;
+        clearLogsButton.textContent = clearable ? `清空任务日志 (${clearable})` : '清空任务日志';
+    }
 
     button.classList.remove('ok', 'warn', 'error');
     if (bitIntegrationAvailable === false) {
@@ -3917,9 +3925,8 @@ function showLoading(s, options = {}) {
         localStorage.removeItem(usersCursorKey);
         localStorage.removeItem(tasksCursorKey);
         localStorage.removeItem(STORAGE_KEY + '_version');
-        // A schema upgrade must never blank the audit list while the full feed reloads.
-        // Legacy "clear logs" only hid local rows, so remove that filter and rehydrate.
-        localStorage.removeItem(hiddenTasksKey);
+        // Keep the local terminal-task cutoff across upgrades. The feed may reload
+        // from zero, but rows at or below that cutoff must remain hidden.
         localStorage.setItem(schemaKey, schemaVersion);
     }
 
@@ -4000,6 +4007,17 @@ function showLoading(s, options = {}) {
     const numberCursor = key => {
         const value = Number(localStorage.getItem(key) || 0);
         return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+    };
+    const terminalTaskStatuses = new Set(['success', 'resolved', 'cancelled']);
+    const taskChangeSeq = task => {
+        const value = Number(task?.changeSeq ?? task?.change_seq ?? 0);
+        return Number.isSafeInteger(value) && value >= 0 ? value : 0;
+    };
+    const terminalTaskIsHidden = task => {
+        if (!terminalTaskStatuses.has(String(task?.status || ''))) return false;
+        const cutoff = numberCursor(hiddenTasksKey);
+        const sequence = taskChangeSeq(task);
+        return cutoff > 0 && sequence > 0 && sequence <= cutoff;
     };
     const allBuckets = state => [state.users || [], state.unused || [], state.trash || []];
     const findRecord = id => allBuckets(db).flat().find(row => String(row.id) === String(id));
@@ -4188,7 +4206,7 @@ function showLoading(s, options = {}) {
         let cursor = numberCursor(tasksCursorKey);
         // Old pages persisted the cursor but dropped bitTasks from the local payload.
         // Rehydrate once from zero instead of treating an empty delta as empty history.
-        if (cursor > 0 && getTaskCache().length === 0) {
+        if (cursor > 0 && getTaskCache().length === 0 && numberCursor(hiddenTasksKey) === 0) {
             cursor = 0;
             localStorage.removeItem(tasksCursorKey);
         }
@@ -4214,9 +4232,9 @@ function showLoading(s, options = {}) {
             if (!result?.hasMore) break;
             if (pages >= 100) throw new Error('任务增量分页超过安全上限。');
         } while (true);
-        localStorage.removeItem(hiddenTasksKey);
         const visibleTasks = getTaskCache()
             .filter(task => !task.deletedAt)
+            .filter(task => !terminalTaskIsHidden(task))
             .sort(taskStableCompare);
         setTaskCache(visibleTasks);
         for (const task of visibleTasks) applyTaskToPage(task);
@@ -4389,9 +4407,42 @@ function showLoading(s, options = {}) {
     };
 
     globalThis.clearBitTaskLogs = async () => {
-        localStorage.removeItem(hiddenTasksKey);
-        alert('任务记录是审计历史，网页端不会再清空或隐藏。');
-        return false;
+        try {
+            await loadTasksV2();
+        } catch (error) {
+            alert('任务同步失败，未清空页面显示：\n' + (error.message || error));
+            return false;
+        }
+        const clearable = getTaskCache().filter(task =>
+            terminalTaskStatuses.has(String(task?.status || ''))
+        );
+        if (!clearable.length) {
+            alert('当前没有可隐藏的已完成、已解决或已取消任务。');
+            return false;
+        }
+        if (!(await showActionConfirm(
+            `确定从本页面隐藏 ${clearable.length} 条历史任务？\n\n数据库审计记录仍会保留；待执行、执行中和需人工处理任务不会隐藏。`,
+            { title: '清空任务显示', confirmText: '确认隐藏', danger: true }
+        ))) return false;
+
+        const cutoff = Math.max(
+            numberCursor(tasksCursorKey),
+            ...clearable.map(taskChangeSeq)
+        );
+        if (cutoff <= 0) {
+            alert('任务增量游标尚未建立，请刷新页面后重试。');
+            return false;
+        }
+        localStorage.setItem(hiddenTasksKey, String(cutoff));
+        setTaskCache(getTaskCache().filter(task =>
+            !terminalTaskStatuses.has(String(task?.status || '')) || taskChangeSeq(task) > cutoff
+        ));
+        persistLocal();
+        render();
+        if (typeof renderTrash === 'function') renderTrash();
+        if (typeof renderBitIntegration === 'function') renderBitIntegration();
+        alert(`已从本页面隐藏 ${clearable.length} 条历史任务，数据库审计记录仍保留。`);
+        return true;
     };
 
     const findManualDeleteTask = record => {
@@ -4971,17 +5022,24 @@ function showLoading(s, options = {}) {
         _bitBgPollTimer = null;
     }
 
-    let lastTaskPollAt = Date.now();
-    setInterval(() => {
-        if (document.visibilityState !== 'visible') return;
-        const now = Date.now();
-        const hasActiveTask = getTaskCache().some(taskIsPending);
-        if (now - lastTaskPollAt < (hasActiveTask ? 10000 : 30000)) return;
-        lastTaskPollAt = now;
-        loadTasksV2().then(() => renderBitIntegration()).catch(error => {
-            console.warn('[v2 tasks] background poll failed:', error.message || error);
-        });
-    }, 5000);
+    if (globalThis.__frontendV2TaskPollTimer) {
+        clearTimeout(globalThis.__frontendV2TaskPollTimer);
+    }
+    const scheduleTaskPoll = delay => {
+        globalThis.__frontendV2TaskPollTimer = setTimeout(async () => {
+            if (document.visibilityState === 'visible') {
+                try {
+                    await loadTasksV2();
+                    renderBitIntegration();
+                } catch (error) {
+                    console.warn('[v2 tasks] background poll failed:', error.message || error);
+                }
+            }
+            const hasActiveTask = getTaskCache().some(taskIsPending);
+            scheduleTaskPoll(hasActiveTask ? 10000 : 60000);
+        }, delay);
+    };
+    scheduleTaskPoll(0);
 })();
 /* FRONTEND_V2_RUNTIME_END */
 
