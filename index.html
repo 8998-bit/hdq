@@ -7,7 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
-<script src="https://pay.bite5678.fun/payment/payment-client.js?v=20260908-v2"></script>
+<script src="https://pay.bite5678.fun/payment/payment-client.js?v=20260910-v3"></script>
 <script src="https://pay.bite5678.fun/payment/window-payment-flow.js?v=20260908-v2"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
@@ -364,6 +364,20 @@
     <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
       <button class="btn btn-ghost" onclick="closeWindowChangeModal()">取消</button>
       <button class="btn btn-primary" id="windowChangeConfirmButton" onclick="confirmWindowChange()">确认</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="trashRenewalPlanModal" onclick="if(event.target===this)closeTrashRenewalPlanModal()">
+  <div class="modal" style="width:min(500px, calc(100vw - 24px));">
+    <h3 style="font-size:16px; color:var(--accent); margin-bottom:8px;">续费后的套餐窗口</h3>
+    <div id="trashRenewalPlanUser" style="font-size:12px; color:#fff; margin-bottom:10px; white-space:pre-line;"></div>
+    <input id="trashRenewalPlanInput" class="edit-input" inputmode="numeric" autocomplete="off" placeholder="留空使用原套餐" oninput="updateTrashRenewalPlanPreview()">
+    <div style="font-size:11px; color:#aab2c2; margin-top:7px;">可填写新的套餐窗口总数；不得低于 BitBrowser 当前已使用窗口数。</div>
+    <div id="trashRenewalPlanPreview" style="font-size:12px; color:var(--accent); margin-top:10px; min-height:38px; line-height:1.6;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:16px;">
+      <button class="btn btn-ghost" onclick="closeTrashRenewalPlanModal()">取消</button>
+      <button class="btn btn-primary" id="trashRenewalPlanConfirmButton" onclick="confirmTrashRenewalPlan()">按此套餐续费</button>
     </div>
   </div>
 </div>
@@ -785,6 +799,93 @@ function windowChangeFeeCents(delta, remainingDays) {
     if (!Number.isSafeInteger(value) || value <= 0 || !Number.isSafeInteger(days) || days < 0) return null;
     const cents = Math.round(WINDOW_CHANGE_BASE_CENTS * value * days / 3000);
     return Number.isSafeInteger(cents) && cents >= 0 ? cents : null;
+}
+
+function xiaoqiangPlanAmountCents(targetWindows) {
+    const windows = Number(targetWindows);
+    if (!Number.isSafeInteger(windows) || windows < 1) return null;
+    return windows <= 100
+        ? WINDOW_CHANGE_BASE_CENTS
+        : Math.round(WINDOW_CHANGE_BASE_CENTS * windows / 100);
+}
+
+function trashRenewalPlanFromInput(record, raw) {
+    const currentWindows = Number(record?.windows);
+    const usedWindows = Number(record?.bitExistingWindows);
+    if (!Number.isSafeInteger(currentWindows) || currentWindows < 1) {
+        return { ok:false, message:'当前套餐窗口数无效，请联系管理员修正后再续费。' };
+    }
+    if (!Number.isSafeInteger(usedWindows) || usedWindows < 0) {
+        return { ok:false, message:'尚未取得 BitBrowser 当前已使用窗口数，请等待联动工具同步后再续费。' };
+    }
+    const text = String(raw).trim();
+    if (text && !/^[0-9]+$/.test(text)) {
+        return { ok:false, message:'套餐窗口数必须是正整数。' };
+    }
+    const targetWindows = text ? Number(text) : currentWindows;
+    if (!Number.isSafeInteger(targetWindows) || targetWindows < 1) {
+        return { ok:false, message:'套餐窗口数必须是大于 0 的整数。' };
+    }
+    if (targetWindows < usedWindows) {
+        return { ok:false, message:`当前已使用 ${usedWindows} 个窗口，新套餐不能低于已使用窗口数。` };
+    }
+    const amountCents = xiaoqiangPlanAmountCents(targetWindows);
+    if (!Number.isSafeInteger(amountCents) || amountCents < 1) {
+        return { ok:false, message:'新套餐金额计算失败，请联系管理员。' };
+    }
+    return { ok:true, currentWindows, usedWindows, targetWindows, amountCents };
+}
+
+let trashRenewalPlanRecord = null;
+let trashRenewalPlanResolver = null;
+
+function promptTrashRenewalWindowPlan(record) {
+    const initial = trashRenewalPlanFromInput(record, '');
+    if (!initial.ok) {
+        alert(initial.message);
+        return Promise.resolve(null);
+    }
+    if (trashRenewalPlanResolver) trashRenewalPlanResolver(null);
+    trashRenewalPlanRecord = record;
+    document.getElementById('trashRenewalPlanUser').textContent = `${record.username}：原套餐 ${initial.currentWindows} 窗口\nBitBrowser 当前已使用 ${initial.usedWindows} 窗口`;
+    document.getElementById('trashRenewalPlanInput').value = '';
+    document.getElementById('trashRenewalPlanModal').classList.add('open');
+    updateTrashRenewalPlanPreview();
+    setTimeout(() => document.getElementById('trashRenewalPlanInput').focus(), 0);
+    return new Promise(resolve => { trashRenewalPlanResolver = resolve; });
+}
+
+function updateTrashRenewalPlanPreview() {
+    const input = document.getElementById('trashRenewalPlanInput');
+    const preview = document.getElementById('trashRenewalPlanPreview');
+    const button = document.getElementById('trashRenewalPlanConfirmButton');
+    const plan = trashRenewalPlanFromInput(trashRenewalPlanRecord, input.value);
+    button.disabled = !plan.ok;
+    preview.style.color = plan.ok ? 'var(--accent)' : 'var(--danger)';
+    preview.textContent = plan.ok
+        ? `${plan.currentWindows} → ${plan.targetWindows} 窗口；续费30天应付 ¥${formatMoneyCents(plan.amountCents)}`
+        : plan.message;
+}
+
+function closeTrashRenewalPlanModal() {
+    document.getElementById('trashRenewalPlanModal').classList.remove('open');
+    const resolve = trashRenewalPlanResolver;
+    trashRenewalPlanResolver = null;
+    trashRenewalPlanRecord = null;
+    if (resolve) resolve(null);
+}
+
+function confirmTrashRenewalPlan() {
+    const plan = trashRenewalPlanFromInput(
+        trashRenewalPlanRecord,
+        document.getElementById('trashRenewalPlanInput').value
+    );
+    if (!plan.ok) return alert(plan.message);
+    document.getElementById('trashRenewalPlanModal').classList.remove('open');
+    const resolve = trashRenewalPlanResolver;
+    trashRenewalPlanResolver = null;
+    trashRenewalPlanRecord = null;
+    if (resolve) resolve(plan);
 }
 
 function activeWindowChangeTask(record) {
@@ -4787,52 +4888,150 @@ function showLoading(s, options = {}) {
         }
     }
 
+    async function stageTrashRenewalPlan(record, plan) {
+        const amount = formatMoneyCents(plan.amountCents);
+        if (Number(record.windows) === plan.targetWindows && String(record.amount) === amount) return record;
+        const data = await callRpc('save_user_changes_v2', {
+            p_user_id: String(record.id),
+            p_changes: { windows: plan.targetWindows, amount },
+            p_expected_updated_at: null
+        });
+        if (!data?.ok) throw new Error(taskErrorText(data?.code || 'SAVE_FAILED'));
+        if (data.user) applyUserRow(data.user);
+        baseSnapshot = snapshotMainData();
+        persistLocal();
+        const staged = (db.trash || []).find(row => String(row.id) === String(record.id));
+        if (!staged || Number(staged.windows) !== plan.targetWindows || recordMonthlyAmountCents(staged) !== plan.amountCents) {
+            throw new Error('新套餐未能保存到云端，请刷新后重试。');
+        }
+        return staged;
+    }
+
+    async function createTrashWindowQuotaTask(record, targetWindows) {
+        const intent = `${record.id}|${targetWindows}`;
+        const requestKey = STORAGE_KEY + ':trashWindowTask:' + encodeURIComponent(intent);
+        const requestId = localStorage.getItem(requestKey) || uuid();
+        localStorage.setItem(requestKey, requestId);
+        const data = await callRpc('create_trash_window_quota_task', {
+            p_source_record_id: String(record.id),
+            p_request_id: requestId,
+            p_target_window_count: targetWindows
+        });
+        if (!data?.ok) {
+            localStorage.removeItem(requestKey);
+            const error = new Error(taskErrorText(data?.code || 'TASK_CREATE_FAILED'));
+            error.code = data?.code || 'TASK_CREATE_FAILED';
+            throw error;
+        }
+        localStorage.removeItem(requestKey);
+        return rememberTask({
+            ...(data.task || {}),
+            sourceRecordId: String(record.id),
+            sourceOwner: String(record.owner || pageOwner()),
+            targetWindowCount: targetWindows,
+            updatedAt: new Date().toISOString()
+        });
+    }
+
+    async function waitForTaskSuccess(taskId, action, timeoutMs = 240000) {
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            await loadTasksV2();
+            const task = getTaskCache().find(row => String(row.id) === String(taskId));
+            const status = String(task?.status || '');
+            if (status === 'success') return task;
+            if (['needs_attention', 'cancelled', 'resolved'].includes(status)) {
+                throw new Error(`${BIT_ACTION_LABELS[action] || action}未完成：${task?.lastError || task?.resultCode || BIT_STATUS_LABELS[status] || status}`);
+            }
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        throw new Error(`${BIT_ACTION_LABELS[action] || action}仍在处理中，请稍后再次点击续费继续原订单。`);
+    }
+
+    async function ensureTrashWindowQuota(recordId, targetWindows) {
+        await Promise.all([syncUsersV2(), loadTasksV2()]);
+        let record = (db.trash || []).find(row => String(row.id) === String(recordId));
+        if (!record) throw new Error('改窗口前账号已不在回收站。');
+        if (Number(record.bitExistingWindows) > targetWindows) {
+            throw new Error(`当前已使用 ${record.bitExistingWindows} 个窗口，新套餐不能低于已使用窗口数。`);
+        }
+        if (Number(record.bitWindowQuota) === targetWindows) return record;
+
+        const activeStatuses = new Set(['routing_required', 'pending', 'processing', 'retry_wait', 'execution_succeeded', 'writeback_pending']);
+        let task = getTaskCache().find(row =>
+            String(row.sourceRecordId || row.source_record_id || '') === String(recordId) &&
+            String(row.action || '') === 'set_window_quota' &&
+            Number(row.targetWindowCount ?? row.target_window_count) === targetWindows &&
+            activeStatuses.has(String(row.status || ''))
+        );
+        if (!task) task = await createTrashWindowQuotaTask(record, targetWindows);
+        await waitForTaskSuccess(task.id, 'set_window_quota');
+        await syncUsersV2();
+        record = (db.trash || []).find(row => String(row.id) === String(recordId));
+        if (!record || Number(record.bitWindowQuota) !== targetWindows) {
+            throw new Error('联动任务已结束，但 BitBrowser 套餐额度尚未确认，请稍后重试。');
+        }
+        return record;
+    }
+
     async function paidRecoverFromTrash(id) {
         if (!(await ensureCloudInitializedForAction())) return false;
+        await syncUsersV2();
         let record = (db.trash || []).find(row => String(row.id) === String(id));
         if (!record) return false;
-        const targetExpiry = getRenewedExpiry(record);
-        let renewalPrice = validRenewalPriceOrAlert(record);
-        if (renewalPrice === null) return false;
-        if (!(await showActionConfirm(`确定为“${record.username}”续费30天并恢复 BitBrowser 员工号？\n\n窗口：${record.windows}\n需支付：¥${Number(renewalPrice)}`, {
+        const plan = await promptTrashRenewalWindowPlan(record);
+        if (!plan) return false;
+        const renewalPrice = plan.amountCents / 100;
+        if (!(await showActionConfirm(`确定为“${record.username}”续费30天并恢复 BitBrowser 员工号？\n\n原套餐：${plan.currentWindows} 窗口\n续费套餐：${plan.targetWindows} 窗口\n当前已使用：${plan.usedWindows} 窗口\n需支付：¥${renewalPrice}`, {
             title: '续费恢复确认', confirmText: '确认并支付'
         }))) return false;
-        const payment = await requestPaidOperation('restore', [id], `${pageOwner()} · ${record.username} · ${record.windows}窗口续费`);
+
+        try {
+            record = await stageTrashRenewalPlan(record, plan);
+        } catch (error) {
+            alert(`新套餐保存失败：\n${error?.message || error}\n\n本次尚未创建付款订单。`);
+            return false;
+        }
+
+        const payment = await requestPaidOperation(
+            'restore',
+            [id],
+            `${pageOwner()} · ${record.username} · ${plan.targetWindows}窗口续费`,
+            {
+                // restore 不会把 windowDelta 发给支付服务；这里只用于隔离不同套餐的本地待支付订单缓存。
+                windowDelta: plan.targetWindows,
+                pricingContext: `restore-plan:${plan.targetWindows}|${plan.amountCents}`
+            }
+        );
         if (!payment) return false;
         try {
+            const pricing = Array.isArray(payment.pricing)
+                ? payment.pricing.find(item => String(item.recordId) === String(id)) : null;
+            if (!pricing || Number(pricing.windows) !== plan.targetWindows || Number(pricing.amountCents) !== plan.amountCents) {
+                throw new Error('支付订单的套餐窗口数或金额与本次选择不一致。');
+            }
             const paidExpiry = paymentExpiryFor(payment, id, record.expiry);
             const paidTargetExpiry = getRenewedExpiry({ expiry: paidExpiry });
-            await syncUsersV2();
-            const alreadyActive = (db.users || []).find(row => String(row.id) === String(id));
-            if (alreadyActive) {
-                if (String(alreadyActive.expiry || '') !== paidTargetExpiry) {
-                    throw new Error('账号已恢复，但到期日与本次付款目标不一致，请联系管理员并提供订单号：' + payment.orderNo);
-                }
-                const completed = await completePaidOperation(payment, { recordIds: [String(id)], action: 'restore', expiryAfter: alreadyActive.expiry, duplicatePrevented: true });
-                render();
-                if (typeof renderTrash === 'function') renderTrash();
-                return completed !== false;
-            }
-            record = (db.trash || []).find(row => String(row.id) === String(id));
-            if (!record) throw new Error('付款后账号状态已变化，请联系管理员并提供订单号：' + payment.orderNo);
-            renewalPrice = validRenewalPriceOrAlert(record);
-            if (renewalPrice === null || Math.abs(Number(payment.totalAmount) - renewalPrice) > 0.001) {
-                throw new Error('付款金额与当前月费不一致，请联系管理员并提供订单号：' + payment.orderNo);
-            }
+            record = await ensureTrashWindowQuota(id, plan.targetWindows);
             const expiryBefore = String(record.expiry || '');
-            await createTask(record, 'recover', { targetExpiry: paidTargetExpiry });
+            const recoverTask = await createTask(record, 'recover', { targetExpiry: paidTargetExpiry });
+            await waitForTaskSuccess(recoverTask.id, 'recover');
             await syncUsersV2();
             const recovered = (db.users || []).find(row => String(row.id) === String(id));
-            if (!recovered || recovered.expiry !== paidTargetExpiry) throw new Error('云端尚未确认恢复结果。');
+            if (!recovered || recovered.expiry !== paidTargetExpiry) throw new Error('云端尚未确认恢复和续期结果。');
             if (typeof recordOperationLog === 'function') recordOperationLog(recovered, 'renew', paidLogDetails(payment, {
-                operatedAt: new Date().toISOString(), expiryBefore, expiryAfter: paidTargetExpiry
+                operatedAt: new Date().toISOString(), expiryBefore, expiryAfter: paidTargetExpiry,
+                windowsBefore: plan.currentWindows, windows: plan.targetWindows, amount: formatMoneyCents(plan.amountCents)
             }));
-            const completed = await completePaidOperation(payment, { recordIds: [String(id)], action: 'restore', expiryAfter: paidTargetExpiry });
+            const completed = await completePaidOperation(payment, {
+                recordIds: [String(id)], action: 'restore', expiryAfter: paidTargetExpiry,
+                targetWindows: plan.targetWindows
+            });
             render();
             if (typeof renderTrash === 'function') renderTrash();
             return completed !== false;
         } catch (error) {
-            alert(`✅ 付款已确认，但续费恢复尚未完成：\n${error?.message || error}\n\n请不要再次付款。订单号：${payment.orderNo}`);
+            alert(`✅ 付款已确认，但套餐调整或续费恢复尚未完成：\n${error?.message || error}\n\n请不要再次付款，稍后点击续费继续原订单。订单号：${payment.orderNo}`);
             return false;
         }
     }
@@ -4937,8 +5136,8 @@ function showLoading(s, options = {}) {
     }
 
     if (typeof quickRenew === 'function') globalThis.quickRenew = paidQuickRenew;
-    if (typeof renewFromTrash === 'function' && typeof requestPaidOperation === 'function') {
-        globalThis.renewFromTrash = paidRecoverFromTrash;
+    if (typeof restore === 'function' && typeof requestPaidOperation === 'function') {
+        globalThis.restore = paidRecoverFromTrash;
     }
     if (typeof batchRestoreTrash === 'function') globalThis.batchRestoreTrash = cloudBatchRestoreTrash;
 
