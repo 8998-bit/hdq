@@ -269,7 +269,7 @@
 
 <header class="header">
   <div style="display:flex; align-items:center">
-    <div class="logo">小强 <span style="font-size:0.7em;opacity:0.75">v0.0.3</span></div>
+    <div class="logo">小强 <span style="font-size:0.7em;opacity:0.75">v0.0.4</span></div>
     <span class="sync-info" id="syncStatus">连接中...</span>
   </div>
   <div style="display:flex; gap:8px;">
@@ -4212,8 +4212,8 @@ function showLoading(s, options = {}) {
     const taskErrorText = code => ({
         ACTIVE_TASK_EXISTS: '该账号已有其他任务，请等待其完成。',
         BLOCKED_BY_NEEDS_ATTENTION: '该账号有需要人工处理的任务，处理前不能创建新任务。',
-        NO_CONNECTOR_SCOPE: '没有连接器负责该账号，请先检查连接器前缀。',
-        AMBIGUOUS_CONNECTOR_SCOPE: '该账号同时命中多台连接器，请先修正连接器范围。',
+        NO_CONNECTOR_SCOPE: '该员工号未出现在任何联动工具的BitBrowser员工目录中。',
+        AMBIGUOUS_CONNECTOR_SCOPE: '该员工号同时出现在多台联动工具的BitBrowser员工目录中，请先清理重复账号。',
         NEW_USERNAME_TAKEN: '新用户名已被占用。',
         NEW_USERNAME_SCOPE_CONFLICT: '新用户名属于另一台连接器。',
         INVALID_STATE_FOR_ACTION: '账号云端状态已变化，请刷新后重试。',
@@ -4527,16 +4527,20 @@ function showLoading(s, options = {}) {
         const requestKey = STORAGE_KEY + ':taskRequest:' + encodeURIComponent(intent);
         const requestId = localStorage.getItem(requestKey) || uuid();
         localStorage.setItem(requestKey, requestId);
+        const rpcPayload = {
+            p_action: action,
+            p_source_record_id: String(record.id),
+            p_request_id: requestId,
+            p_target_window_count: options.targetWindowCount ?? null,
+            p_new_username: options.newUsername || null,
+            p_target_expiry: options.targetExpiry || null
+        };
         let data;
         try {
-            data = await callRpc('create_bit_task', {
-                p_action: action,
-                p_source_record_id: String(record.id),
-                p_request_id: requestId,
-                p_target_window_count: options.targetWindowCount ?? null,
-                p_new_username: options.newUsername || null,
-                p_target_expiry: options.targetExpiry || null
-            });
+            data = await callRpc('create_bit_task', rpcPayload);
+            if (!data?.ok && String(data?.code || '') === 'NO_CONNECTOR_SCOPE') {
+                data = await callRpc('admin_apply_web_only_action_v2', rpcPayload);
+            }
         } catch (error) {
             throw error;
         }
@@ -4555,7 +4559,12 @@ function showLoading(s, options = {}) {
             throw error;
         }
         localStorage.removeItem(requestKey);
-        const task = rememberTask({
+        if (data.user) applyUserRow(mapUserRow(data.user, record));
+        const task = data.webOnly ? {
+            id: `web-only:${requestId}`, status: 'resolved', action, username: record.username,
+            sourceRecordId: String(record.id), sourceOwner: String(record.owner || pageOwner()),
+            webOnly: true, updatedAt: new Date().toISOString()
+        } : rememberTask({
             ...(data.task || {}),
             sourceRecordId: String(record.id),
             sourceOwner: String(record.owner || pageOwner()),
@@ -4567,15 +4576,15 @@ function showLoading(s, options = {}) {
             operatedAt: new Date().toISOString(),
             syncSource: `bit_task:${String(task?.id || requestId)}`
         };
-        if (action === 'disable') {
+        if (!task.webOnly && action === 'disable') {
             recordOperationAudit(record, 'trash', taskAuditDetails);
-        } else if (action === 'delete') {
+        } else if (!task.webOnly && action === 'delete') {
             recordOperationAudit(record, 'permanent_delete', taskAuditDetails);
-        } else if (action === 'rename') {
+        } else if (!task.webOnly && action === 'rename') {
             recordOperationAudit({ ...record, username: options.newUsername || record.username }, 'rename', taskAuditDetails);
         }
         bitIntegrationAvailable = true;
-        bitIntegrationMessage = data.reused ? '已确认现有任务，等待连接器处理' : '任务已写入云端，等待连接器处理';
+        bitIntegrationMessage = data.webOnly ? '未匹配联动工具，已只修改前端数据' : (data.reused ? '已确认现有任务，等待连接器处理' : '任务已写入云端，等待连接器处理');
         if (typeof refreshBitTaskBadge === 'function') refreshBitTaskBadge();
         if (!options.skipUserSync) {
             try {
